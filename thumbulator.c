@@ -430,6 +430,7 @@ if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
         ra=read_register(rd);
         rb=read_register(rm);
         rc=ra+rb;
+        if(rd==15) rc+=2; //The program counter is special
 //fprintf(stderr,"0x%08X = 0x%08X + 0x%08X\n",rc,ra,rb);
         write_register(rd,rc);
         return(0);
@@ -921,6 +922,7 @@ if(DISS) fprintf(stderr,"cps TODO\n");
         rm=(inst>>3)&0x7;
 if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
         rc=read_register(rm);
+        //if(rd==15) rc+=2; //The program counter is special //mov is handling r15
         write_register(rd,rc);
         return(0);
     }
@@ -1285,6 +1287,7 @@ if(DISS) fprintf(stderr,"movs r%u,r%u\n",rd,rn);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
+        if(rd==15) rc+=2; //The program counter is special
         write_register(rd,rc);
         return(0);
     }
