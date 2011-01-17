@@ -1679,7 +1679,7 @@ if(DISS) fprintf(stderr,"strb r%u,[r%u,r%u]\n",rd,rn,rm);
         rd=(inst>>0)&0x07;
         rn=(inst>>3)&0x07;
         rb=(inst>>6)&0x1F;
-        rb<<1;
+        rb<<=1;
 if(DISS) fprintf(stderr,"strh r%u,[r%u,#0x%X]\n",rd,rn,rb);
         rb=read_register(rn)+rb;
         rc=read_register(rd);
