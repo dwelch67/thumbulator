@@ -394,7 +394,7 @@ if(DISS) fprintf(stderr,"adds r%u,#0x%02X\n",rd,rb);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,rb,0);
-        do_add_vflag(ra,-rb,rc);
+        do_add_vflag(ra,rb,rc);
         return(0);
     }
 
@@ -1232,7 +1232,7 @@ if(DISS) fprintf(stderr,"lsrs r%u,r%u\n",rd,rs);
         }
         else if(rb<32)
         {
-            do_cflag_bit(rc&(1<<(32-rb)));
+            do_cflag_bit(rc&(1<<(rb-1)));
             rc>>=rb;
         }
         else if(rb==32)
