@@ -171,8 +171,24 @@ fflush(stdout);
             }
             return;
         case 0xD0000000: //debug
-            fprintf(stderr,"[0x%08X][0x%08X] 0x%08X\n",read_register(14),addr,data);
-            return;
+            switch(addr&0xFF)
+            {
+                case 0x00:
+                {
+                    fprintf(stderr,"[0x%08X][0x%08X] 0x%08X\n",read_register(14),addr,data);
+                    return;
+                }
+                case 0x10:
+                {
+                    printf("0x%08X ",data);
+                    return;
+                }
+                case 0x20:
+                {
+                    printf("0x%08X\n",data);
+                    return;
+                }
+            }
         case 0x40000000: //RAM
             write16(addr+0,(data>> 0)&0xFFFF);
             write16(addr+2,(data>>16)&0xFFFF);
@@ -286,26 +302,15 @@ void do_cflag ( unsigned int a, unsigned int b, unsigned int c )
     if(rc&2) cpsr|=CPSR_C;
 }
 //-------------------------------------------------------------------
-void do_sub_vflag ( unsigned int a, unsigned int b, unsigned int c )
+void do_vflag ( unsigned int a, unsigned int b, unsigned int c )
 {
+    unsigned int rc;
+
     cpsr&=~CPSR_V;
-    //if the sign bits are different
-    if((a&0x80000000)^(b&0x80000000))
-    {
-        //and result matches b
-        if((b&0x80000000)==(c&0x80000000)) cpsr|=CPSR_V;
-    }
-}
-//-------------------------------------------------------------------
-void do_add_vflag ( unsigned int a, unsigned int b, unsigned int c )
-{
-   cpsr&=~CPSR_V;
-   //if sign bits are the same
-   if((a&0x80000000)==(b&0x80000000))
-   {
-       //and the result is different
-       if((b&0x80000000)!=(c&0x80000000)) cpsr|=CPSR_V;
-   }
+    rc=(a&0x7FFFFFFF)+(b&0x7FFFFFFF)+c; //carry in
+    rc = (rc>>31)+(a>>31)+(b>>31);  //carry out
+    rc = rc +((a>>30)&2)+((b>>30)&2);  //sign extend
+    if(((rc>>1)&1)!=(rc&1)) cpsr|=CPSR_V;
 }
 //-------------------------------------------------------------------
 void do_cflag_bit ( unsigned int x )
@@ -351,9 +356,8 @@ if(DISS) fprintf(stderr,"adc r%u,r%u\n",rd,rm);
         write_register(rd,rc);
         do_nflag(rc);
         do_zflag(rc);
-        if(cpsr&CPSR_C) do_cflag(ra,rb,1);
-        else            do_cflag(ra,rb,0);
-        do_add_vflag(ra,rb,rc);
+        if(cpsr&CPSR_C) { do_cflag(ra,rb,1); do_vflag(ra,rb,1); }
+        else            { do_cflag(ra,rb,0); do_vflag(ra,rb,0); }
         return(0);
     }
 
@@ -373,7 +377,7 @@ if(DISS) fprintf(stderr,"adds r%u,r%u,#0x%X\n",rd,rn,rb);
             do_nflag(rc);
             do_zflag(rc);
             do_cflag(ra,rb,0);
-            do_add_vflag(ra,rb,rc);
+            do_vflag(ra,rb,0);
             return(0);
         }
         else
@@ -394,7 +398,7 @@ if(DISS) fprintf(stderr,"adds r%u,#0x%02X\n",rd,rb);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,rb,0);
-        do_add_vflag(ra,rb,rc);
+        do_vflag(ra,rb,0);
         return(0);
     }
 
@@ -412,7 +416,7 @@ if(DISS) fprintf(stderr,"adds r%u,r%u,r%u\n",rd,rn,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,rb,0);
-        do_add_vflag(ra,rb,rc);
+        do_vflag(ra,rb,0);
         return(0);
     }
 
@@ -836,7 +840,7 @@ if(DISS) fprintf(stderr,"cmns r%u,r%u\n",rn,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,rb,0);
-        do_add_vflag(ra,rb,rc);
+        do_vflag(ra,rb,0);
         return(0);
     }
 
@@ -852,7 +856,7 @@ if(DISS) fprintf(stderr,"cmp r%u,#0x%02X\n",rn,rb);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -869,7 +873,7 @@ if(DISS) fprintf(stderr,"cmps r%u,r%u\n",rn,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -894,15 +898,7 @@ if(DISS) fprintf(stderr,"cmps r%u,r%u\n",rn,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
-if(0)
-{
-    if(cpsr&CPSR_N) fprintf(stderr,"N"); else fprintf(stderr,"n");
-    if(cpsr&CPSR_Z) fprintf(stderr,"Z"); else fprintf(stderr,"z");
-    if(cpsr&CPSR_C) fprintf(stderr,"C"); else fprintf(stderr,"c");
-    if(cpsr&CPSR_V) fprintf(stderr,"V"); else fprintf(stderr,"v");
-    fprintf(stderr," -- 0x%08X 0x%08X\n",ra,rb);
-}
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -1333,7 +1329,7 @@ if(DISS) fprintf(stderr,"negs r%u,r%u\n",rd,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(0,~ra,1);
-        do_sub_vflag(0,ra,rc);
+        do_vflag(0,~ra,1);
         return(0);
     }
 
@@ -1540,8 +1536,16 @@ if(DISS) fprintf(stderr,"sbc r%u,r%u\n",rd,rm);
         write_register(rd,rc);
         do_nflag(rc);
         do_zflag(rc);
-        do_cflag(ra,rb,0);
-        do_sub_vflag(ra,rb,rc);
+        if(cpsr&CPSR_C)
+        {
+            do_cflag(ra,~rb,1);
+            do_vflag(ra,~rb,1);
+        }
+        else
+        {
+            do_cflag(ra,~rb,0);
+            do_vflag(ra,~rb,0);
+        }
         return(0);
     }
 
@@ -1713,7 +1717,7 @@ if(DISS) fprintf(stderr,"subs r%u,r%u,#0x%X\n",rd,rn,rb);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -1729,7 +1733,7 @@ if(DISS) fprintf(stderr,"subs r%u,#0x%02X\n",rd,rb);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -1747,7 +1751,7 @@ if(DISS) fprintf(stderr,"subs r%u,r%u,r%u\n",rd,rn,rm);
         do_nflag(rc);
         do_zflag(rc);
         do_cflag(ra,~rb,1);
-        do_sub_vflag(ra,rb,rc);
+        do_vflag(ra,~rb,1);
         return(0);
     }
 
@@ -1768,8 +1772,17 @@ if(DISS) fprintf(stderr,"sub SP,#0x%02X\n",rb);
     {
         rb=inst&0xFF;
 if(DISS) fprintf(stderr,"swi 0x%02X\n",rb);
-        fprintf(stderr,"\n\nswi 0x%02X\n",rb);
-        return(1);
+
+        if((inst&0xFF)==0xCC)
+        {
+            write_register(0,cpsr);
+            return(0);
+        }
+        else
+        {
+            fprintf(stderr,"\n\nswi 0x%02X\n",rb);
+            return(1);
+        }
     }
 
     //SXTB
