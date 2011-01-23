@@ -7,6 +7,8 @@ unsigned int read32 ( unsigned int );
 
 unsigned int read_register ( unsigned int reg );
 
+#define DBUGRAM 0
+#define DBUGRAMW 0
 #define DBUG 0
 #define DISS 0
 
@@ -122,9 +124,8 @@ if(DBUG) fprintf(stderr,"0x%08X\n",data);
                 exit(1);
             }
         case 0x40000000: //RAM
-            data =fetch16(addr+2);
-            data<<=16;
-            data|=fetch16(addr+0);
+            data=fetch16(addr+0);
+            data|=((unsigned int)fetch16(addr+2))<<16;
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
             return(data);
     }
@@ -138,16 +139,17 @@ void write16 ( unsigned int addr, unsigned int data )
     writes++;
 
 
-if(DBUG) fprintf(stderr,"write16(0x%08X,0x%08X)\n",addr,data);
+if(DBUG) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
     switch(addr&0xF0000000)
     {
         case 0x40000000: //RAM
+if(DBUGRAM) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
             addr&=RAMADDMASK;
             addr>>=1;
             ram[addr]=data&0xFFFF;
             return;
     }
-    fprintf(stderr,"write16(0x%08X,0x%08X), abort\n",addr,data);
+    fprintf(stderr,"write16(0x%08X,0x%04X), abort\n",addr,data);
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -190,6 +192,7 @@ fflush(stdout);
                 }
             }
         case 0x40000000: //RAM
+if(DBUGRAMW) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
             write16(addr+0,(data>> 0)&0xFFFF);
             write16(addr+2,(data>>16)&0xFFFF);
             return;
@@ -214,10 +217,12 @@ if(DBUG) fprintf(stderr,"read16(0x%08X)=",addr);
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
         case 0x40000000: //RAM
+if(DBUGRAM) fprintf(stderr,"read16(0x%08X)=",addr);
             addr&=RAMADDMASK;
             addr>>=1;
             data=ram[addr];
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
+if(DBUGRAM) fprintf(stderr,"0x%04X\n",data);
             return(data);
     }
     fprintf(stderr,"read16(0x%08X), abort\n",addr);
@@ -233,10 +238,11 @@ if(DBUG) fprintf(stderr,"read32(0x%08X)=",addr);
     {
         case 0x00000000: //ROM
         case 0x40000000: //RAM
-            data =read16(addr+2);
-            data<<=16;
-            data|=read16(addr+0);
+if(DBUGRAMW) fprintf(stderr,"read32(0x%08X)=",addr);
+            data =read16(addr+0);
+            data|=((unsigned int)read16(addr+2))<<16;
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
+if(DBUGRAMW) fprintf(stderr,"0x%08X\n",data);
             return(data);
     }
     fprintf(stderr,"read32(0x%08X), abort\n",addr);
