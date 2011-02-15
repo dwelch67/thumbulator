@@ -5,8 +5,9 @@
 
 unsigned int read32 ( unsigned int );
 
-unsigned int read_register ( unsigned int reg );
+unsigned int read_register ( unsigned int );
 
+#define DBUGFETCH 0
 #define DBUGRAM 0
 #define DBUGRAMW 0
 #define DBUG 0
@@ -21,45 +22,25 @@ unsigned int read_register ( unsigned int reg );
 unsigned short rom[ROMSIZE>>1];
 unsigned short ram[RAMSIZE>>1];
 
-//0b10000 User       PC, R14 to R0, CPSR
-//0b10001 FIQ        PC, R14_fiq to R8_fiq, R7 to R0, CPSR, SPSR_fiq
-//0b10010 IRQ        PC, R14_irq, R13_irq, R12 to R0, CPSR, SPSR_irq
-//0b10011 Supervisor PC, R14_svc, R13_svc, R12 to R0, CPSR, SPSR_svc
-//0b10111 Abort      PC, R14_abt, R13_abt, R12 to R0, CPSR, SPSR_abt
-//0b11011 Undefined  PC, R14_und, R13_und, R12 to R0, CPSR, SPSR_und
-//0b11111 System
-
-#define MODE_USR 0x10
-#define MODE_FIQ 0x11
-#define MODE_IRQ 0x12
-#define MODE_SVC 0x13
-#define MODE_ABT 0x17
-#define MODE_UND 0x1B
-#define MODE_SYS 0x1F
-
-#define CPSR_T (1<<5)
-#define CPSR_F (1<<6)
-#define CPSR_I (1<<7)
 #define CPSR_N (1<<31)
 #define CPSR_Z (1<<30)
 #define CPSR_C (1<<29)
 #define CPSR_V (1<<28)
 #define CPSR_Q (1<<27)
 
+unsigned int systick_load_count;
+unsigned int systick_count;
+
 unsigned int halfadd;
 unsigned int cpsr;
-unsigned int reg_usr[16]; //User mode
-unsigned int reg_sys[16]; //System mode
-unsigned int reg_svc[16]; //Supervisor mode
-//unsigned int reg_abt[16]; //Abort mode
-//unsigned int reg_und[16]; //Undefined mode
-unsigned int reg_irq[16]; //Interrupt mode
-//unsigned int reg_fiq[16]; //Fast Interrupt mode
+unsigned int handler_mode;
+unsigned int reg_norm[16]; //normal execution mode, do not have a thread mode
 
 unsigned long instructions;
 unsigned long fetches;
 unsigned long reads;
 unsigned long writes;
+unsigned long systick_ints;
 
 //-------------------------------------------------------------------
 void dump_counters ( void )
@@ -70,6 +51,7 @@ void dump_counters ( void )
     printf("reads        %lu\n",reads);
     printf("writes       %lu\n",writes);
     printf("memcycles    %lu\n",fetches+reads+writes);
+    printf("systick_ints %lu\n",systick_ints);
 }
 //-------------------------------------------------------------------
 unsigned int fetch16 ( unsigned int addr )
@@ -78,27 +60,29 @@ unsigned int fetch16 ( unsigned int addr )
 
     fetches++;
 
-
+if(DBUGFETCH) fprintf(stderr,"fetch16(0x%08X)=",addr);
 if(DBUG) fprintf(stderr,"fetch16(0x%08X)=",addr);
     switch(addr&0xF0000000)
     {
         case 0x00000000: //ROM
             addr&=ROMADDMASK;
 
-if(addr<0x50)
-{
-    fprintf(stderr,"fetch16(0x%08X), abort\n",addr);
-    exit(1);
-}
+//if(addr<0x50)
+//{
+//    fprintf(stderr,"fetch16(0x%08X), abort\n",addr);
+//    exit(1);
+//}
 
             addr>>=1;
             data=rom[addr];
+if(DBUGFETCH) fprintf(stderr,"0x%04X\n",data);
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
         case 0x40000000: //RAM
             addr&=RAMADDMASK;
             addr>>=1;
             data=ram[addr];
+if(DBUGFETCH) fprintf(stderr,"0x%04X\n",data);
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
     }
@@ -110,6 +94,7 @@ unsigned int fetch32 ( unsigned int addr )
 {
     unsigned int data;
 
+if(DBUGFETCH) fprintf(stderr,"fetch32(0x%08X)=",addr);
 if(DBUG) fprintf(stderr,"fetch32(0x%08X)=",addr);
     switch(addr&0xF0000000)
     {
@@ -117,15 +102,19 @@ if(DBUG) fprintf(stderr,"fetch32(0x%08X)=",addr);
             if(addr<0x50)
             {
                 data=read32(addr);
+if(DBUGFETCH) fprintf(stderr,"0x%08X\n",data);
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
                 if(addr==0x00000000) return(data);
                 if(addr==0x00000004) return(data);
+                if(addr==0x0000003C) return(data);
                 fprintf(stderr,"fetch32(0x%08X), abort\n",addr);
                 exit(1);
             }
         case 0x40000000: //RAM
-            data=fetch16(addr+0);
-            data|=((unsigned int)fetch16(addr+2))<<16;
+            //data=fetch16(addr+0);
+            //data|=((unsigned int)fetch16(addr+2))<<16;
+            data=read32(addr);
+if(DBUGFETCH) fprintf(stderr,"0x%08X\n",data);
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
             return(data);
     }
@@ -169,6 +158,10 @@ if(DISS) printf("uart: [");
                     printf("%c",data&0xFF);
 if(DISS) printf("]\n");
 fflush(stdout);
+                    break;
+                case 0xE0010000:
+                    systick_load_count=data;
+                    systick_count=systick_load_count;
                     break;
             }
             return;
@@ -255,37 +248,16 @@ unsigned int read_register ( unsigned int reg )
 
     reg&=0xF;
 if(DBUG) fprintf(stderr,"read_register(%u)=",reg);
-    switch(cpsr&0x1F)
-    {
-        case MODE_SVC:
-            switch(reg)
-            {
-                default: data=reg_sys[reg]; break;
-                case 13: case 14: data=reg_svc[reg]; break;
-            }
+    data=reg_norm[reg];
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
-            return(data);
-    }
-    fprintf(stderr,"invalid cpsr mode 0x%08X\n",cpsr);
-    exit(1);
+    return(data);
 }
 //-------------------------------------------------------------------
-unsigned int write_register ( unsigned int reg, unsigned int data )
+void write_register ( unsigned int reg, unsigned int data )
 {
     reg&=0xF;
 if(DBUG) fprintf(stderr,"write_register(%u,0x%08X)\n",reg,data);
-    switch(cpsr&0x1F)
-    {
-        case MODE_SVC:
-            switch(reg)
-            {
-                default: reg_sys[reg]=data; break;
-                case 13: case 14: reg_svc[reg]=data; break;
-            }
-            return(data);
-    }
-    fprintf(stderr,"invalid cpsr mode 0x%08X\n",cpsr);
-    exit(1);
+    reg_norm[reg]=data;
 }
 //-------------------------------------------------------------------
 void do_zflag ( unsigned int x )
@@ -342,6 +314,59 @@ int execute ( void )
     unsigned int op;
 
     pc=read_register(15);
+
+    if(handler_mode)
+    {
+        if((pc&0xF0000000)==0xF0000000)
+        {
+            unsigned int sp;
+
+            handler_mode = 0;
+//fprintf(stderr,"--leaving handler\n");
+            sp=read_register(13);
+            write_register(0,read32(sp)); sp+=4;
+            write_register(1,read32(sp)); sp+=4;
+            write_register(2,read32(sp)); sp+=4;
+            write_register(3,read32(sp)); sp+=4;
+            write_register(12,read32(sp)); sp+=4;
+            write_register(14,read32(sp)); sp+=4;
+            pc=read32(sp); sp+=4;
+            cpsr=read32(sp); sp+=4;
+            write_register(13,sp);
+        }
+    }
+    if(systick_load_count)
+    {
+        if(systick_count)
+        {
+            systick_count--;
+        }
+        else if(handler_mode==0)
+        {
+            unsigned int sp;
+
+            systick_ints++;
+//fprintf(stderr,"--- enter systick handler\n");
+            sp=read_register(13);
+            sp-=4; write32(sp,cpsr);
+            sp-=4; write32(sp,pc);
+            sp-=4; write32(sp,read_register(14));
+            sp-=4; write32(sp,read_register(12));
+            sp-=4; write32(sp,read_register(3));
+            sp-=4; write32(sp,read_register(2));
+            sp-=4; write32(sp,read_register(1));
+            sp-=4; write32(sp,read_register(0));
+            write_register(13,sp);
+            pc=fetch32(0x0000003C); //systick vector
+            pc+=2;
+            write_register(14,0xFFFFFF00);
+
+            systick_count=systick_load_count;
+            handler_mode=1;
+        }
+    }
+
+
     inst=fetch16(pc-2);
     pc+=2;
     write_register(15,pc);
@@ -1863,11 +1888,15 @@ int reset ( void )
 {
     memset(ram,0xFF,sizeof(ram));
 
-    cpsr=CPSR_T|CPSR_I|CPSR_F|MODE_SVC;
+    systick_load_count=0;
+    systick_count=0;
+    handler_mode=0;
+    cpsr=0;
 
-    reg_svc[13]=fetch32(0x00000000); //cortex-m3
-    reg_sys[15]=fetch32(0x00000004); //cortex-m3
-    reg_sys[15]+=2;
+    reg_norm[13]=fetch32(0x00000000); //cortex-m3
+    reg_norm[14]=0xFFFFFFFF;
+    reg_norm[15]=fetch32(0x00000004); //cortex-m3
+    reg_norm[15]+=2;
 
     instructions=0;
     fetches=0;
