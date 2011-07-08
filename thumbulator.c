@@ -283,12 +283,15 @@ void do_cflag ( unsigned int a, unsigned int b, unsigned int c )
 void do_vflag ( unsigned int a, unsigned int b, unsigned int c )
 {
     unsigned int rc;
+    unsigned int rd;
 
     cpsr&=~CPSR_V;
     rc=(a&0x7FFFFFFF)+(b&0x7FFFFFFF)+c; //carry in
-    rc = (rc>>31)+(a>>31)+(b>>31);  //carry out
-    rc = rc +((a>>30)&2)+((b>>30)&2);  //sign extend
-    if(((rc>>1)&1)!=(rc&1)) cpsr|=CPSR_V;
+    rc>>=31; //carry in in lsbit
+    rd=(rc&1)+((a>>31)&1)+((b>>31)&1); //carry out
+    rd>>=1; //carry out in lsbit
+    rc=(rc^rd)&1; //if carry in != carry out then signed overflow
+    if(rc) cpsr|=CPSR_V;
 }
 //-------------------------------------------------------------------
 void do_cflag_bit ( unsigned int x )
