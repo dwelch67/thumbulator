@@ -17,7 +17,7 @@
 .word   hang        /* 0x30 12 Debug Monitor */
 .word   hang        /* 0x34 13 RESERVED */
 .word   hang        /* 0x38 14 PendSV */
-.word   systick     /* 0x3C 15 SysTick */
+.word   systick_handler /* 0x3C 15 SysTick */
 .word   hang        /* 0x40 16 External Interrupt(0) */
 .word   hang        /* 0x44 17 External Interrupt(1) */
 .word   hang        /* 0x48 18 External Interrupt(2) */
@@ -37,11 +37,13 @@ _start:
     @str r0,[r0]
     b .
 
+/*
 .thumb_func
 .global systick
 systick:
     push {lr}
     bl systick_handler
     pop {pc}
+*/
 
 .end

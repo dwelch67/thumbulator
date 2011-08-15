@@ -2,95 +2,63 @@
 //------------------------------------------------------------------------
 //------------------------------------------------------------------------
 void PUT32 ( unsigned int, unsigned int);
+unsigned int GET32 ( unsigned int );
 
-unsigned int systicks;
+#define STCTRL   0xE000E010
+#define STRELOAD 0xE000E014
+#define STCURR   0xE000E018
 
-#define THUL_UART_BASE 0xE0000000
-//------------------------------------------------------------------------
-void uart_putc ( unsigned int c )
+#define DEBUG_ADDR 0xD0000020
+
+//*********************************************************
+//  THIS IS AN INTERRUPT HANDLER, DONT MESS AROUND
+unsigned int twoled;
+void systick_handler ( void )
 {
-    PUT32(THUL_UART_BASE+0x0,c);
-}
-//------------------------------------------------------------------------
-void hexstring ( unsigned int d )
-{
-    //unsigned int ra;
-    unsigned int rb;
-    unsigned int rc;
-
-    rb=32;
-    while(1)
+    GET32(STCTRL); //clear pending interrupt
+    if(twoled&1)
     {
-        rb-=4;
-        rc=(d>>rb)&0xF;
-        if(rc>9) rc+=0x37; else rc+=0x30;
-        uart_putc(rc);
-        if(rb==0) break;
-    }
-    uart_putc(0x0D);
-    uart_putc(0x0A);
-}
-//------------------------------------------------------------------------
-unsigned int prand32 ( unsigned int x )
-{
-    if(x&1)
-    {
-        x=x>>1;
-        x=x^0xBF9EC099;
+        PUT32(DEBUG_ADDR,0x11111111);
+        PUT32(DEBUG_ADDR,GET32(STCURR));
     }
     else
     {
-        x=x>>1;
+        PUT32(DEBUG_ADDR,0x22222222);
     }
-    return(x);
+    twoled++;
 }
-unsigned int data[4096];
-//------------------------------------------------------------------------
-void systick_handler ( void )
-{
-    systicks++;
-}
+//*********************************************************
+
 //------------------------------------------------------------------------
 int notmain ( void )
 {
-    unsigned int ra,rb,rc;
-    unsigned int prand;
-    unsigned int prand_start;
-    unsigned int errors;
 
-    systicks=0;
+if(1)
+{
+    PUT32(STCTRL,0x00000004);
+    PUT32(STRELOAD,1000-1);
+    PUT32(STCTRL,0x00000007); //interrupt enabled
+    while(1) continue;
+}
+else
+{
+    unsigned int ra;
 
-    PUT32(0xE0010000,0x100);
-
-    errors=0;
-    prand=0x1234;
-    prand=prand32(prand);
-//    while(1)
+    PUT32(STCTRL,0x00000004);
+    PUT32(STRELOAD,1000-1);
+    PUT32(STCTRL,0x00000005); //interrupt not enabled
+    while(1)
     {
-        prand_start=prand;
-        for(ra=0;ra<4096;ra++)
+        if(GET32(STCTRL)&0x00010000)
         {
-            prand=prand32(prand);
-            data[ra]=prand;
+            ra++;
+            PUT32(DEBUG_ADDR,ra);
+            PUT32(DEBUG_ADDR,GET32(STCTRL));
         }
-        prand=prand_start;
-        for(ra=0;ra<4096;ra++)
-        {
-            prand=prand32(prand);
-            rb=prand;
-            rc=data[ra];
-            if(rc!=rb)
-            {
-                errors++;
-                hexstring(errors);
-                hexstring(rc);
-                hexstring(rb);
-                PUT32(0xF0000000,0);
-            }
-        }
+
     }
-    PUT32(0xE0010000,0x00);
-    hexstring(systicks);
+}
+
     return(0);
 }
 //------------------------------------------------------------------------

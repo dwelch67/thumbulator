@@ -28,8 +28,10 @@ unsigned short ram[RAMSIZE>>1];
 #define CPSR_V (1<<28)
 #define CPSR_Q (1<<27)
 
-unsigned int systick_load_count;
+unsigned int systick_ctrl;
+unsigned int systick_reload;
 unsigned int systick_count;
+unsigned int systick_calibrate;
 
 unsigned int halfadd;
 unsigned int cpsr;
@@ -159,10 +161,35 @@ if(DISS) printf("uart: [");
 if(DISS) printf("]\n");
 fflush(stdout);
                     break;
-                case 0xE0010000:
-                    systick_load_count=data;
-                    systick_count=systick_load_count;
+
+                case 0xE000E010:
+                {
+                    unsigned int old;
+
+                    old=systick_ctrl;
+                    systick_ctrl = data&0x00010007;
+                    if(((old&1)==0)&&(systick_ctrl&1))
+                    {
+                        //timer started, load count
+                        systick_count=systick_reload;
+                    }
                     break;
+                }
+                case 0xE000E014:
+                {
+                    systick_reload=data&0x00FFFFFF;
+                    break;
+                }
+                case 0xE000E018:
+                {
+                    systick_count=data&0x00FFFFFF;
+                    break;
+                }
+                case 0xE000E01C:
+                {
+                    systick_calibrate=data&0x00FFFFFF;
+                    break;
+                }
             }
             return;
         case 0xD0000000: //debug
@@ -237,6 +264,33 @@ if(DBUGRAMW) fprintf(stderr,"read32(0x%08X)=",addr);
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
 if(DBUGRAMW) fprintf(stderr,"0x%08X\n",data);
             return(data);
+        case 0xE0000000:
+        {
+            switch(addr)
+            {
+                case 0xE000E010:
+                {
+                    data = systick_ctrl;
+                    systick_ctrl&=(~0x00010000);
+                    return(data);
+                }
+                case 0xE000E014:
+                {
+                    data=systick_reload;
+                    return(data);
+                }
+                case 0xE000E018:
+                {
+                    data=systick_count;
+                    return(data);
+                }
+                case 0xE000E01C:
+                {
+                    data=systick_calibrate;
+                    return(data);
+                }
+            }
+        }
     }
     fprintf(stderr,"read32(0x%08X), abort\n",addr);
     exit(1);
@@ -338,36 +392,50 @@ int execute ( void )
             write_register(13,sp);
         }
     }
-    if(systick_load_count)
+    if(systick_ctrl&1)
     {
         if(systick_count)
         {
             systick_count--;
         }
-        else if(handler_mode==0)
+        else
         {
-            unsigned int sp;
-
-            systick_ints++;
-//fprintf(stderr,"--- enter systick handler\n");
-            sp=read_register(13);
-            sp-=4; write32(sp,cpsr);
-            sp-=4; write32(sp,pc);
-            sp-=4; write32(sp,read_register(14));
-            sp-=4; write32(sp,read_register(12));
-            sp-=4; write32(sp,read_register(3));
-            sp-=4; write32(sp,read_register(2));
-            sp-=4; write32(sp,read_register(1));
-            sp-=4; write32(sp,read_register(0));
-            write_register(13,sp);
-            pc=fetch32(0x0000003C); //systick vector
-            pc+=2;
-            write_register(14,0xFFFFFF00);
-
-            systick_count=systick_load_count;
-            handler_mode=1;
+            systick_count=systick_reload;
+            systick_ctrl|=0x00010000;
         }
     }
+
+    if((systick_ctrl&3)==3)
+    {
+        if(systick_ctrl&0x00010000)
+        {
+            if(handler_mode==0)
+            {
+                unsigned int sp;
+
+                systick_ints++;
+//fprintf(stderr,"--- enter systick handler\n");
+                sp=read_register(13);
+                sp-=4; write32(sp,cpsr);
+                sp-=4; write32(sp,pc);
+                sp-=4; write32(sp,read_register(14));
+                sp-=4; write32(sp,read_register(12));
+                sp-=4; write32(sp,read_register(3));
+                sp-=4; write32(sp,read_register(2));
+                sp-=4; write32(sp,read_register(1));
+                sp-=4; write32(sp,read_register(0));
+                write_register(13,sp);
+                pc=fetch32(0x0000003C); //systick vector
+                pc+=2;
+                //write_register(14,0xFFFFFF00);
+                write_register(14,0xFFFFFFF9);
+
+                handler_mode=1;
+            }
+        }
+    }
+
+
 
 
     inst=fetch16(pc-2);
@@ -1891,8 +1959,10 @@ int reset ( void )
 {
     memset(ram,0xFF,sizeof(ram));
 
-    systick_load_count=0;
-    systick_count=0;
+    systick_ctrl=0x00000004;
+    systick_reload=0x00000000;
+    systick_count=0x00000000;
+    systick_calibrate=0x00ABCDEF;
     handler_mode=0;
     cpsr=0;
 
