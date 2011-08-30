@@ -1,0 +1,16 @@
+adventure.6
+crc.c
+done.c
+extern.h
+glorkz
+hdr.h
+init.c
+io.c
+main.c
+Makefile.bsd
+Makefrag
+save.c
+setup.c
+subr.c
+vocab.c
+wizard.c

@@ -88,7 +88,7 @@ if(DBUGFETCH) fprintf(stderr,"0x%04X\n",data);
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
     }
-    fprintf(stderr,"fetch16(0x%08X), abort\n",addr);
+    fprintf(stderr,"fetch16(0x%08X), abort pc = 0x%04X\n",addr,read_register(15));
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -109,7 +109,7 @@ if(DBUG) fprintf(stderr,"0x%08X\n",data);
                 if(addr==0x00000000) return(data);
                 if(addr==0x00000004) return(data);
                 if(addr==0x0000003C) return(data);
-                fprintf(stderr,"fetch32(0x%08X), abort\n",addr);
+                fprintf(stderr,"fetch32(0x%08X), abort pc = 0x%04X\n",addr,read_register(15));
                 exit(1);
             }
         case 0x40000000: //RAM
@@ -120,7 +120,7 @@ if(DBUGFETCH) fprintf(stderr,"0x%08X\n",data);
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
             return(data);
     }
-    fprintf(stderr,"fetch32(0x%08X), abort\n",addr);
+    fprintf(stderr,"fetch32(0x%08X), abort pc 0x%04X\n",addr,read_register(15));
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -140,7 +140,7 @@ if(DBUGRAM) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
             ram[addr]=data&0xFFFF;
             return;
     }
-    fprintf(stderr,"write16(0x%08X,0x%04X), abort\n",addr,data);
+    fprintf(stderr,"write16(0x%08X,0x%04X), abort pc 0x%04X\n",addr,data,read_register(15));
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -217,7 +217,7 @@ if(DBUGRAMW) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
             write16(addr+2,(data>>16)&0xFFFF);
             return;
     }
-    fprintf(stderr,"write32(0x%08X,0x%08X), abort\n",addr,data);
+    fprintf(stderr,"write32(0x%08X,0x%08X), abort pc 0x%04X\n",addr,data,read_register(15));
     exit(1);
 }
 //-----------------------------------------------------------------
@@ -245,7 +245,7 @@ if(DBUG) fprintf(stderr,"0x%04X\n",data);
 if(DBUGRAM) fprintf(stderr,"0x%04X\n",data);
             return(data);
     }
-    fprintf(stderr,"read16(0x%08X), abort\n",addr);
+    fprintf(stderr,"read16(0x%08X), abort pc 0x%04X\n",addr,read_register(15));
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -292,7 +292,7 @@ if(DBUGRAMW) fprintf(stderr,"0x%08X\n",data);
             }
         }
     }
-    fprintf(stderr,"read32(0x%08X), abort\n",addr);
+    fprintf(stderr,"read32(0x%08X), abort pc 0x%04X\n",addr,read_register(15));
     exit(1);
 }
 //-------------------------------------------------------------------
@@ -884,8 +884,22 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
         else
         if((inst&0x1800)==0x0800) //H=b01
         {
-            fprintf(stderr,"cannot branch to arm 0x%08X 0x%04X\n",pc,inst);
-            return(1);
+            //fprintf(stderr,"cannot branch to arm 0x%08X 0x%04X\n",pc,inst);
+            //return(1);
+            //branch to thumb
+            rb=halfadd&((1<<11)-1);
+            if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
+            rb<<=11;
+            rb|=inst&((1<<11)-1);
+            rb<<=1;
+            rb+=pc;
+if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
+            write_register(14,pc-2);
+            write_register(15,rb);
+            return(0);
+
+
+
         }
     }
 
