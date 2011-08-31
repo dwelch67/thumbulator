@@ -536,7 +536,15 @@ if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
         ra=read_register(rd);
         rb=read_register(rm);
         rc=ra+rb;
-        if(rd==15) rc+=2; //The program counter is special
+        if(rd==15)
+        {
+            if((rc&1)==0)
+            {
+                fprintf(stderr,"add pc,... produced an arm address 0x%08X 0x%08X\n",pc,rc);
+                exit(1);
+            }
+            rc+=2; //The program counter is special
+        }
 //fprintf(stderr,"0x%08X = 0x%08X + 0x%08X\n",rc,ra,rb);
         write_register(rd,rc);
         return(0);
@@ -1399,7 +1407,15 @@ if(DISS) fprintf(stderr,"movs r%u,r%u\n",rd,rn);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
-        if(rd==15) rc+=2; //The program counter is special
+        if(rd==15)
+        {
+            if((rc&1)==0)
+            {
+                fprintf(stderr,"cpy or mov pc,... produced an ARM address 0x%08X 0x%08X\n",pc,rc);
+                exit(1);
+            }
+            rc+=2; //The program counter is special
+        }
         write_register(rd,rc);
         return(0);
     }
@@ -1500,6 +1516,11 @@ if(DISS)
         if(inst&0x100)
         {
             rc=read32(sp);
+            if((rc&1)==0)
+            {
+                fprintf(stderr,"pop {rc} with an ARM address pc 0x%08X popped 0x%08X\n",pc,rc);
+                exit(1);
+            }
             rc+=2;
             write_register(15,rc);
             sp+=4;
