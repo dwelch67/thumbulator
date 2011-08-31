@@ -87,7 +87,7 @@ void * not_malloc ( unsigned int len )
     ret=(void *)heap_off;
     heap_off+=len;
 
-/*if(heap_off>=0x40007F00)*/ hexstring(heap_off,1);
+if(heap_off>=0x40007F00) hexstring(heap_off,1);
     return(ret);
 }
 
@@ -97,7 +97,7 @@ void * tbuf_malloc ( unsigned int len )
 
 //    ret=(void *)&heap_data[heap_off];
     ret=(void *)heap_off;
-/*if(heap_off>=0x40007F00)*/ hexstring(heap_off,1);
+if(heap_off>=0x40007F00) hexstring(heap_off,1);
     return(ret);
 }
 

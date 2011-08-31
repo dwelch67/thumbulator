@@ -1,20 +1,12 @@
 
-This is the classic game of adventure.  Yeah, really, on a
-microcontroller. (using the 4MHz oscillator).
+This is the classic game of adventure.  Yeah, really.
 
 It needs some debugging, perhaps compiler, perhaps code, who knows.
 
-The gcc.thumb2. version likes to work sometimes.  The others do not.
+This code exposed an llvm bug and I added support to catch similar bugs
+in thumbulator as a result.
 
-It is one of those things where you change a line of code and things
-break, change another and things work.
+thumbulator does not handle keyboard input just yet.  Trying to debug this code for use on real hardware
+and it crashes before it gets to the point where the opening (game) text shows in the output.
 
-The cpu clock has not been boosted in this version, running at the
-power on
 
-It just barely fits more than 0x3000 bytes of .bss, allocated 0x4000
-synthesized mallocs, over 0x3000 bytes of mallocs, have only 0x8000
-bytes of ram in a single chunk for all of that data.  There are two
-other 0x4000 byte chunks.  Would like to use one for the stack but
-need to read more about those other memories.  Perhaps they have to
-be enabled.

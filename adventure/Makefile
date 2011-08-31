@@ -9,7 +9,7 @@ LLCOPS = -march=thumb
 OOPS = -std-compile-opts
 
 
-all : adventure.gcc.bin adventure.clang.norm.bin
+all : adventure.gcc.bin adventure.clang.norm.bin adventure.clang.opt.bin
 
 gcc : adventure.gcc.bin
 
@@ -28,14 +28,14 @@ clean :
 	rm -f *.opt.s
 	rm -f *.bc
 
-
+hello:
+	next/_modsi3.o next/_divsi3.o next/_umodsi3.o next/_udivsi3.o next/_thumb1_case_uqi.o  next/_thumb1_case_shi.o
 
 adventure.gcc.bin : adventure.gcc.elf
 	$(ARMGNU)-objcopy adventure.gcc.elf -O binary adventure.gcc.bin
 
 adventure.gcc.elf : vectors.o uart.o crc.o data.o done.o init.o io.o main.o show.o subr.o vocab.o wizard.o
-	$(ARMGNU)-gcc $(COPS) -Xlinker memmap -o adventure.gcc.elf vectors.o uart.o crc.o data.o done.o init.o io.o main.o show.o subr.o vocab.o wizard.o -lgcc
-	#$(ARMGNU)-ld -T memmap -o adventure.gcc.elf vectors.o uart.o crc.o data.o done.o init.o io.o main.o show.o subr.o vocab.o wizard.o
+	$(ARMGNU)-ld -T memmap -o adventure.gcc.elf vectors.o uart.o crc.o data.o done.o init.o io.o main.o show.o subr.o vocab.o wizard.o next/_divsi3.o next/_udivsi3.o next/_thumb1_case_uqi.o next/_thumb1_case_shi.o
 	$(ARMGNU)-objdump -D adventure.gcc.elf > adventure.gcc.list
 
 
@@ -115,8 +115,7 @@ adventure.clang.bc : crc.clang.bc data.clang.bc done.clang.bc init.clang.bc io.c
 adventure.clang.norm.bin : memmap vectors.o adventure.clang.bc
 	llc $(LLCOPS) adventure.clang.bc -o adventure.clang.norm.s
 	$(ARMGNU)-as adventure.clang.norm.s -o adventure.clang.norm.o
-	$(ARMGNU)-ld -o adventure.clang.norm.elf -T memmap vectors.o adventure.clang.norm.o
-	#$(ARMGNU)-gcc -o adventure.clang.norm.elf -Xlinker memmap vectors.o adventure.clang.norm.o -lgcc
+	$(ARMGNU)-ld -o adventure.clang.norm.elf -T memmap vectors.o adventure.clang.norm.o next/_modsi3.o next/_divsi3.o next/_umodsi3.o 
 	$(ARMGNU)-objdump -D adventure.clang.norm.elf > adventure.clang.norm.list
 	$(ARMGNU)-objcopy adventure.clang.norm.elf adventure.clang.norm.bin -O binary
 
@@ -124,8 +123,7 @@ adventure.clang.opt.bin : memmap vectors.o adventure.clang.bc
 	opt $(OOPS) adventure.clang.bc -o adventure.clang.opt.bc
 	llc $(LLCOPS) adventure.clang.opt.bc -o adventure.clang.opt.s
 	$(ARMGNU)-as adventure.clang.opt.s -o adventure.clang.opt.o
-	$(ARMGNU)-ld -o adventure.clang.opt.elf -T memmap vectors.o adventure.clang.opt.o
-	#$(ARMGNU)-gcc -o adventure.clang.opt.elf -Xlinker memmap vectors.o adventure.clang.opt.o -lgcc
+	$(ARMGNU)-ld -o adventure.clang.opt.elf -T memmap vectors.o adventure.clang.opt.o next/_modsi3.o next/_divsi3.o next/_umodsi3.o
 	$(ARMGNU)-objdump -D adventure.clang.opt.elf > adventure.clang.opt.list
 	$(ARMGNU)-objcopy adventure.clang.opt.elf adventure.clang.opt.bin -O binary
 

@@ -8,5 +8,7 @@ MEMORY
 SECTIONS
 {
     .text : { *(.text*) } > rom
+    .data : { *(.data*) } > ram
+    .bss  : { *(.bss*)  } > ram
 }
 
