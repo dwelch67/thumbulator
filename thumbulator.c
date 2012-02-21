@@ -303,6 +303,7 @@ unsigned int read_register ( unsigned int reg )
     reg&=0xF;
 if(DBUG) fprintf(stderr,"read_register(%u)=",reg);
     data=reg_norm[reg];
+    if(reg==15) data&=~1;
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
     return(data);
 }
@@ -311,6 +312,7 @@ void write_register ( unsigned int reg, unsigned int data )
 {
     reg&=0xF;
 if(DBUG) fprintf(stderr,"write_register(%u,0x%08X)\n",reg,data);
+    if(reg==15) data&=~1;
     reg_norm[reg]=data;
 }
 //-------------------------------------------------------------------
@@ -543,6 +545,7 @@ if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
                 fprintf(stderr,"add pc,... produced an arm address 0x%08X 0x%08X\n",pc,rc);
                 exit(1);
             }
+            rc&=~1; //write_register may do this as well
             rc+=2; //The program counter is special
         }
 //fprintf(stderr,"0x%08X = 0x%08X + 0x%08X\n",rc,ra,rb);
@@ -885,7 +888,7 @@ if(DISS) fprintf(stderr,"\n");
             rb<<=1;
             rb+=pc;
 if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
-            write_register(14,pc-2);
+            write_register(14,(pc-2)|1);
             write_register(15,rb);
             return(0);
         }
@@ -902,7 +905,7 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
             rb<<=1;
             rb+=pc;
 if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
-            write_register(14,pc-2);
+            write_register(14,(pc-2)|1);
             write_register(15,rb);
             return(0);
 
@@ -921,7 +924,7 @@ if(DISS) fprintf(stderr,"blx r%u\n",rm);
         rc+=2;
         if(rc&1)
         {
-            write_register(14,pc-2);
+            write_register(14,(pc-2)|1);
             write_register(15,rc);
             return(0);
         }
@@ -1038,11 +1041,15 @@ if(DISS) fprintf(stderr,"cps TODO\n");
     {
         //same as mov except you can use both low registers
         //going to let mov handle high registers
-        rd=(inst>>0)&0x7;
-        rm=(inst>>3)&0x7;
+        rd=(inst>>0)&0x7; //mov handles the high registers
+        rm=(inst>>3)&0x7; //mov handles the high registers
 if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
         rc=read_register(rm);
-        //if(rd==15) rc+=2; //The program counter is special //mov is handling r15
+        //if(rd==15) //mov handles the high registers like r15
+        //{
+            //rc&=~1;
+            //rc+=2; //The program counter is special
+        //}
         write_register(rd,rc);
         return(0);
     }
@@ -1414,6 +1421,7 @@ if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
                 fprintf(stderr,"cpy or mov pc,... produced an ARM address 0x%08X 0x%08X\n",pc,rc);
                 exit(1);
             }
+            rc&=~1; //write_register may do this as well
             rc+=2; //The program counter is special
         }
         write_register(rd,rc);
