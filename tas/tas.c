@@ -181,6 +181,7 @@ unsigned int parse_reg ( unsigned int ra )
     for(;newline[ra];ra++)
     {
         if(newline[ra]==',') break;
+        if(newline[ra]==']') break;
         if(newline[ra]==0x20) break;
         cstring[rb++]=newline[ra];
     }
@@ -203,6 +204,8 @@ unsigned int parse_low_reg ( unsigned int ra )
     for(;newline[ra];ra++)
     {
         if(newline[ra]==',') break;
+        if(newline[ra]=='!') break;
+        if(newline[ra]=='}') break;
         if(newline[ra]==0x20) break;
         cstring[rb++]=newline[ra];
     }
@@ -234,6 +237,19 @@ unsigned int parse_comma ( unsigned int ra )
     return(ra);
 }
 //-------------------------------------------------------------------
+unsigned int parse_character ( unsigned int ra, unsigned char ch )
+{
+    for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
+    if(newline[ra]!=ch)
+    {
+        printf("<%u> Error: syntax error\n",line);
+        return(0);
+    }
+    ra++;
+    for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
+    return(ra);
+}
+//-------------------------------------------------------------------
 unsigned int no_spaces ( unsigned int ra )
 {
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
@@ -249,174 +265,6 @@ unsigned int parse_two_regs ( unsigned int ra )
     rm=rx;
     return(ra);
 }
-////-------------------------------------------------------------------
-//unsigned int parse_par_open ( unsigned int ra )
-//{
-    //for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
-    //if(newline[ra]!='(')
-    //{
-        //printf("<%u> Error: syntax error\n",line);
-        //return(0);
-    //}
-    //ra++;
-    //for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_par_close ( unsigned int ra )
-//{
-    //for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
-    //if(newline[ra]!=')')
-    //{
-        //printf("<%u> Error: syntax error\n",line);
-        //return(0);
-    //}
-    //ra++;
-    //for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_three_regs ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rd=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rs=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_three_shift ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rd=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rs=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_two_immed ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rs=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_immed(ra); if(ra==0) return(0);
-    //rd=rx;
-    //immed=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_two_shift ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rd=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_immed(ra); if(ra==0) return(0);
-    //rs=rx;
-    //rshift=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_branch_label ( unsigned int ra )
-//{
-    //unsigned int rb;
-    //unsigned int rc;
-
-    //is_const=0;
-    //is_label=0;
-    //for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
-    //if(numchar[newline[ra]])
-    //{
-        //ra=parse_immed(ra); if(ra==0) return(0);
-        //is_const=1;
-    //}
-    //else
-    //{
-        ////assume label, find space or eol.
-        //for(rb=ra;newline[rb];rb++)
-        //{
-            //if(newline[rb]==0x20) break; //no spaces in labels
-        //}
-        ////got a label
-        //rc=rb-ra;
-        //if(rc==0)
-        //{
-            //printf("<%u> Error: Invalid label\n",line);
-            //return(0);
-        //}
-        //rc--;
-        //if(rc>=LABLEN)
-        //{
-            //printf("<%u> Error: Label too long\n",line);
-            //return(0);
-        //}
-        //for(rb=0;rb<=rc;rb++)
-        //{
-            //lab_struct[nlabs].name[rb]=newline[ra++];
-        //}
-        //lab_struct[nlabs].name[rb]=0;
-        //lab_struct[nlabs].addr=curradd;
-        //lab_struct[nlabs].line=line;
-        //lab_struct[nlabs].type=1;
-        //nlabs++;
-        //rx=0;
-        //is_label=1;
-    //}
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_two_label ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rs=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_branch_label(ra); if(ra==0) return(0);
-    //rd=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_one_label ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rs=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_branch_label(ra); if(ra==0) return(0);
-    //rd=rx;
-    //return(ra);
-//}
-////-------------------------------------------------------------------
-//unsigned int parse_load_store ( unsigned int ra )
-//{
-    //ra=parse_reg(ra); if(ra==0) return(0);
-    //rt=rx;
-    //ra=parse_comma(ra); if(ra==0) return(0);
-    //ra=parse_branch_label(ra); if(ra==0) return(0);
-    //rd=rx;
-    //if(is_const)
-    //{
-        //ra=parse_par_open(ra); if(ra==0) return(0);
-        //ra=parse_reg(ra); if(ra==0) return(0);
-        //rs=rx;
-        //ra=parse_par_close(ra); if(ra==0) return(0);
-    //}
-    //return(ra);
-//}
 //-------------------------------------------------------------------
 //-------------------------------------------------------------------
 int assemble ( void )
@@ -787,9 +635,188 @@ int assemble ( void )
             if(rest_of_line(ra)) return(1);
             continue;
         }
+// cmp -----------------------------------------------------------
+        if(strncmp(&newline[ra],"cmp ",4)==0)
+        {
+            ra+=4;
+            //cmp rn,#immed_8
+            //cmp rn,rm both low
+            //cmp rn,rm one or the other high
+            ra=parse_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            if(newline[ra]=='#')
+            {
+                ra++;
+                ra=parse_immed(ra); if(ra==0) return(1);
+                if((rx&0xFF)!=rx)
+                {
+                    printf("<%u> Error: Invalid immediate\n",line);
+                    return(1);
+                }
+                //cmp rn,#immed_8
+                mem[curradd]=0x2800|(rn<<8)|rx;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                ra=parse_reg(ra); if(ra==0) return(1);
+                rm=rx;
+                if((rn>7)||(rm>7))
+                {
+                    if(rn==15)
+                    {
+                        printf("<%u> Error: Not wise to use r15 in this way\n",line);
+                        return(1);
+                    }
+                    //cmp rn,rm one or the other high
+                    mem[curradd]=0x4500|((rn&8)<<4)|(rm<<3)|rn;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //cmp rn,rm both low
+                    mem[curradd]=0x4280|(rm<<3)|rn;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
 
-
-
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// eor -----------------------------------------------------------
+        if(strncmp(&newline[ra],"eor ",4)==0)
+        {
+            ra+=4;
+            //eor rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x4040|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ldmia -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldmia ",6)==0)
+        {
+            ra+=6;
+            //ldmia rn!,{r0,r1,...,r7}
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            ra=parse_character(ra,'!'); if(ra==0) return(1);
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'{'); if(ra==0) return(1);
+            rm=0;
+            while(1)
+            {
+                ra=parse_low_reg(ra); if(ra==0) return(1);
+                if(rm&(1<<rx))
+                {
+                    printf("<%u> Warning: You already specified r%u\n",line,rx);
+                }
+                rm|=(1<<rx);
+                if(newline[ra]=='}')
+                {
+                    ra++;
+                    break;
+                }
+                ra=parse_comma(ra); if(ra==0) return(1);
+            }
+            mem[curradd]=0xC800|(rn<<8)|rm;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ldr -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldr ",4)==0)
+        {
+            ra+=4;
+            //ldr rd,[rn,#immed_5*4]
+            //ldr rd,[rn,rm]
+            //ldr rd,[pc,#immed_8*4]
+            //ldr rd,[sp,#immed_8*4]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(rx>7)
+            {
+                if(rn==15)
+                {
+                }
+                else
+                if(rn==13)
+                {
+                }
+                else
+                {
+                    printf("<%u> Error: Invalid base register\n",line);
+                    return(1);
+                }
+                if(newline[ra]==']')
+                {
+                    rx=0;
+                }
+                else
+                {
+                    ra=parse_comma(ra); if(ra==0) return(1);
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x3FC)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                }
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                //ldr rd,[pc,#immed_8*4]
+                //ldr rd,[sp,#immed_8*4]
+                mem[curradd]=0x0000|(rd<<8)|(rx>>2);
+                if(rn==15) mem[curradd]|=0x4800;
+                if(rn==13) mem[curradd]|=0x9800;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                if(newline[ra]==',')
+                {
+                    ra=parse_comma(ra); if(ra==0) return(1);
+                    if(newline[ra]=='#')
+                    {
+                        //ldr rd,[rn,#immed_5*4]
+                        ra=parse_character(ra,'#'); if(ra==0) return(1);
+                        ra=parse_immed(ra); if(ra==0) return(1);
+                        if((rx&0x3C)!=rx)
+                        {
+                            printf("<%u> Error: Invalid immediate\n",line);
+                            return(1);
+                        }
+                        ra=parse_character(ra,']'); if(ra==0) return(1);
+                        mem[curradd]=0x6800|((rx>>2)<<6)|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                    else
+                    {
+                        //ldr rd,[rn,rm]
+                    }
+                }
+                else
+                {
+                    //ldr rd,[rn] immed_5 = 0
+                }
+                syntax error
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
 //// nop -----------------------------------------------------------
         //if(strncmp(&newline[ra],"nop",3)==0)
         //{
@@ -921,6 +948,58 @@ void dissassemble ( unsigned short inst )
         rn=inst&7;
         rm=(inst>>3)&7;
         printf("cmn r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x2800)
+    {
+        rx=inst&0xFF;
+        rn=(inst>>3)&7;
+        printf("cmp r%u,#0x%02X ; %u",rn,rx,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x4280)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        printf("cmp r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFF00)==0x4500)
+    {
+        rn=inst&7;
+        rn|=(inst>>4)&8;
+        rm=(inst>>3)&0xF;
+        printf("cmp r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFFC0)==0x4040)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        printf("eor r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xF800)==0xC800)
+    {
+        rm=inst&0xFF;
+        rn=(inst>>3)&7;
+        printf("ldmia r%u!,{",rn);
+        for(rx=0;rx<8;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf("r%u",rx);
+                break;
+            }
+        }
+        for(rx++;rx<8;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf(",r%u",rx);
+            }
+        }
+        printf("}");
         return;
     }
 

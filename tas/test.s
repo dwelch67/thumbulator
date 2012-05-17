@@ -32,3 +32,9 @@ bx r1
 bx r15
 cmn r7,r7
 cmn r5,r2
+cmp r4,#0x45
+cmp r7,r3
+cmp r14,r13
+eor r2,r6
+
+ldmia r2!,{r3,r1,r7}
