@@ -12,6 +12,8 @@ FILE *fpin;
 FILE *fpout;
 
 unsigned int rd,rm,rn,rx;
+unsigned int bl_upper;
+unsigned int is_const,is_label;
 
 #define ADDMASK 0xFFFF
 unsigned short mem[ADDMASK+1];
@@ -184,6 +186,7 @@ unsigned int parse_reg ( unsigned int ra )
     {
         if(newline[ra]==',') break;
         if(newline[ra]==']') break;
+        if(newline[ra]=='}') break;
         if(newline[ra]==0x20) break;
         cstring[rb++]=newline[ra];
     }
@@ -269,6 +272,53 @@ unsigned int parse_two_regs ( unsigned int ra )
     return(ra);
 }
 //-------------------------------------------------------------------
+unsigned int parse_branch_label ( unsigned int ra )
+{
+    unsigned int rb;
+    unsigned int rc;
+
+    is_const=0;
+    is_label=0;
+    for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
+    if(numchar[newline[ra]])
+    {
+        ra=parse_immed(ra); if(ra==0) return(0);
+        is_const=1;
+    }
+    else
+    {
+        //assume label, find space or eol.
+        for(rb=ra;newline[rb];rb++)
+        {
+            if(newline[rb]==0x20) break; //no spaces in labels
+        }
+        //got a label
+        rc=rb-ra;
+        if(rc==0)
+        {
+            printf("<%u> Error: Invalid label\n",line);
+            return(0);
+        }
+        rc--;
+        if(rc>=LABLEN)
+        {
+            printf("<%u> Error: Label too long\n",line);
+            return(0);
+        }
+        for(rb=0;rb<=rc;rb++)
+        {
+            lab_struct[nlabs].name[rb]=newline[ra++];
+        }
+        lab_struct[nlabs].name[rb]=0;
+        lab_struct[nlabs].addr=curradd;
+        lab_struct[nlabs].line=line;
+        lab_struct[nlabs].type=1;
+        nlabs++;
+        rx=0;
+        is_label=1;
+    }
+    return(ra);
+}//-------------------------------------------------------------------
 //-------------------------------------------------------------------
 int assemble ( void )
 {
@@ -581,7 +631,90 @@ int assemble ( void )
             continue;
         }
 // b -----------------------------------------------------------
-//TODO
+        if(strncmp(&newline[ra],"b ",2)==0)
+        {
+            ra+=2;
+            //b label
+            //b immed
+            ra=parse_branch_label(ra); if(ra==0) return(1);
+            if(rest_of_line(ra)) return(1);
+            if(is_label)
+            {
+                mem[curradd]=0xE000;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+            if(is_const)
+            {
+                rd=rx-((curradd<<1)+4);
+                rm=0xFFFFFFFF<<11;
+                if(rd&rm)
+                {
+                    if((rd&rm)!=rm)
+                    {
+                        printf("<%u> Error: Branch destination too far\n",line);
+                        return(1);
+                    }
+                }
+                //ignore even/odd address?
+                rm=(rd>>1)&0x7FF;
+                mem[curradd]=0xE000|rm;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+        }
+// bcond -----------------------------------------------------------
+        rn=0;
+        if(strncmp(&newline[ra],"beq ",4)==0) rn=0x10;
+        if(strncmp(&newline[ra],"bne ",4)==0) rn=0x11;
+        if(strncmp(&newline[ra],"bcs ",4)==0) rn=0x12;
+        if(strncmp(&newline[ra],"bcc ",4)==0) rn=0x13;
+        if(strncmp(&newline[ra],"bmi ",4)==0) rn=0x14;
+        if(strncmp(&newline[ra],"bpl ",4)==0) rn=0x15;
+        if(strncmp(&newline[ra],"bvs ",4)==0) rn=0x16;
+        if(strncmp(&newline[ra],"bvc ",4)==0) rn=0x17;
+        if(strncmp(&newline[ra],"bhi ",4)==0) rn=0x18;
+        if(strncmp(&newline[ra],"bls ",4)==0) rn=0x19;
+        if(strncmp(&newline[ra],"bge ",4)==0) rn=0x1A;
+        if(strncmp(&newline[ra],"blt ",4)==0) rn=0x1B;
+        if(strncmp(&newline[ra],"bgt ",4)==0) rn=0x1C;
+        if(strncmp(&newline[ra],"ble ",4)==0) rn=0x1D;
+        if(strncmp(&newline[ra],"bal ",4)==0) rn=0x1E;
+        if(rn)
+        {
+            ra+=3;
+            ra=parse_branch_label(ra); if(ra==0) return(1);
+            if(rest_of_line(ra)) return(1);
+            if(is_label)
+            {
+                mem[curradd]=0xE000;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+            if(is_const)
+            {
+                rd=rx-((curradd<<1)+4);
+                rm=0xFFFFFFFF<<8;
+                if(rd&rm)
+                {
+                    if((rd&rm)!=rm)
+                    {
+                        printf("<%u> Error: Branch destination too far\n",line);
+                        return(1);
+                    }
+                }
+                //ignore even/odd address?
+                rm=(rd>>1)&0xFF;
+                rn&=0xF;
+                mem[curradd]=0xD000|(rn<<8)|rm;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+        }
 // bic -----------------------------------------------------------
         if(strncmp(&newline[ra],"bic ",4)==0)
         {
@@ -612,7 +745,47 @@ int assemble ( void )
             continue;
         }
 // bl -----------------------------------------------------------
-//TODO
+        if(strncmp(&newline[ra],"bl ",3)==0)
+        {
+            ra+=3;
+            //bl label
+            //bl immed
+            ra=parse_branch_label(ra); if(ra==0) return(1);
+            if(rest_of_line(ra)) return(1);
+            if(is_label)
+            {
+                mem[curradd]=0xF000;
+                mark[curradd]=0x8002;
+                curradd++;
+                mem[curradd]=0xF800;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+            if(is_const)
+            {
+                rd=rx-((curradd<<1)+4);
+                rm=0xFFFFFFFF<<22;
+                if(rd&rm)
+                {
+                    if((rd&rm)!=rm)
+                    {
+                        printf("<%u> Error: Branch destination too far\n",line);
+                        return(1);
+                    }
+                }
+                //ignore even/odd address?
+                rn=(rd>>12)&0x7FF;
+                rm=(rd>>1)&0x7FF;
+                mem[curradd]=0xF000|rn;
+                mark[curradd]=0x8002;
+                curradd++;
+                mem[curradd]=0xF800|rm;
+                mark[curradd]=0x8002;
+                curradd++;
+                continue;
+            }
+        }
 // bx -----------------------------------------------------------
         if(strncmp(&newline[ra],"bx ",3)==0)
         {
@@ -648,27 +821,13 @@ int assemble ( void )
             ra=parse_reg(ra); if(ra==0) return(1);
             rn=rx;
             ra=parse_comma(ra); if(ra==0) return(1);
-            if(newline[ra]=='#')
-            {
-                ra++;
-                ra=parse_immed(ra); if(ra==0) return(1);
-                if((rx&0xFF)!=rx)
-                {
-                    printf("<%u> Error: Invalid immediate\n",line);
-                    return(1);
-                }
-                //cmp rn,#immed_8
-                mem[curradd]=0x2800|(rn<<8)|rx;
-                mark[curradd]=0x8000;
-                curradd++;
-            }
-            else
+            if(rn>7)
             {
                 ra=parse_reg(ra); if(ra==0) return(1);
                 rm=rx;
-                if((rn>7)||(rm>7))
+                if(rm>7)
                 {
-                    if(rn==15)
+                    if(rm==15)
                     {
                         printf("<%u> Error: Not wise to use r15 in this way\n",line);
                         return(1);
@@ -685,7 +844,48 @@ int assemble ( void )
                     mark[curradd]=0x8000;
                     curradd++;
                 }
+            }
+            else
+            {
+                if(newline[ra]=='#')
+                {
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0xFF)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    //cmp rn,#immed_8
+                    mem[curradd]=0x2800|(rn<<8)|rx;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    ra=parse_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    if(rm>7)
+                    {
+                        if(rm==15)
+                        {
+                            printf("<%u> Error: Not wise to use r15 in this way\n",line);
+                            return(1);
+                        }
+                        //cmp rn,rm one or the other high
+                        mem[curradd]=0x4500|((rn&8)<<4)|(rm<<3)|rn;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                    else
+                    {
+                        //cmp rn,rm both low
+                        mem[curradd]=0x4280|(rm<<3)|rn;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
 
+                }
             }
             if(rest_of_line(ra)) return(1);
             continue;
@@ -901,7 +1101,7 @@ int assemble ( void )
                     //ldrh rd,[rn,#immed_5]
                     ra=parse_character(ra,'#'); if(ra==0) return(1);
                     ra=parse_immed(ra); if(ra==0) return(1);
-                    if((rx&0x3E)!=rx)
+                    if((rx&(0x1F<<1))!=rx)
                     {
                         printf("<%u> Error: Invalid immediate\n",line);
                         return(1);
@@ -1185,6 +1385,7 @@ int assemble ( void )
                     ra=parse_character(ra,'}'); if(ra==0) return(1);
                     break;
                 }
+                ra=parse_comma(ra); if(ra==0) return(1);
             }
             mem[curradd]=0xBC00|rm;
             mark[curradd]=0x8000;
@@ -1217,6 +1418,7 @@ int assemble ( void )
                     ra=parse_character(ra,'}'); if(ra==0) return(1);
                     break;
                 }
+                ra=parse_comma(ra); if(ra==0) return(1);
             }
             mem[curradd]=0xB400|rm;
             mark[curradd]=0x8000;
@@ -1284,9 +1486,9 @@ int assemble ( void )
         if(strncmp(&newline[ra],"str ",4)==0)
         {
             ra+=4;
-            //ldr rd,[rn,#immed_5*4]
-            //ldr rd,[rn,rm]
-            //ldr rd,[sp,#immed_8*4]
+            //str rd,[rn,#immed_5*4]
+            //str rd,[rn,rm]
+            //str rd,[sp,#immed_8*4]
             ra=parse_low_reg(ra); if(ra==0) return(1);
             rd=rx;
             ra=parse_comma(ra); if(ra==0) return(1);
@@ -1343,7 +1545,7 @@ int assemble ( void )
                     }
                     else
                     {
-                        //ldr rd,[rn,rm]
+                        //str rd,[rn,rm]
                         ra=parse_low_reg(ra); if(ra==0) return(1);
                         rm=rx;
                         ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1354,7 +1556,7 @@ int assemble ( void )
                 }
                 else
                 {
-                    //ldr rd,[rn] immed_5 = 0
+                    //str rd,[rn] immed_5 = 0
                     ra=parse_character(ra,']'); if(ra==0) return(1);
                     mem[curradd]=0x6000|(0<<6)|(rn<<3)|rd;
                     mark[curradd]=0x8000;
@@ -1364,30 +1566,264 @@ int assemble ( void )
             if(rest_of_line(ra)) return(1);
             continue;
         }
-
-
-
-
-
-
-
-
+// strb -----------------------------------------------------------
+        if(strncmp(&newline[ra],"strb ",5)==0)
+        {
+            ra+=5;
+            //strb rd,[rn,#immed_5]
+            //strb rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                if(newline[ra]=='#')
+                {
+                    //strb rd,[rn,#immed_5]
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x1F)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x7000|((rx>>0)<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //strb rd,[rn,rm]
+                    ra=parse_low_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x5400|(rm<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+            }
+            else
+            {
+                //strb rd,[rn] immed_5 = 0
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                mem[curradd]=0x7000|(0<<6)|(rn<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// strh -----------------------------------------------------------
+        if(strncmp(&newline[ra],"strh ",5)==0)
+        {
+            ra+=5;
+            //strh rd,[rn,#immed_5*2]
+            //strh rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                if(newline[ra]=='#')
+                {
+                    //strh rd,[rn,#immed_5*2]
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&(0x1F<<1))!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x8000|((rx>>1)<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //strh rd,[rn,rm]
+                    ra=parse_low_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x5200|(rm<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+            }
+            else
+            {
+                //strh rd,[rn] immed_5 = 0
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                mem[curradd]=0x8000|(0<<6)|(rn<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// sub -----------------------------------------------------------
+        if(strncmp(&newline[ra],"sub ",4)==0)
+        {
+            ra+=4;
+            //sub rd,rm,#immed_3
+            //sub rd,#immed_8
+            //sub rd,rn,rm
+            //sub sp,#immed_7*4
+            ra=parse_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            if(rd>7)
+            {
+                //sub rdhi,
+                if((rd==13)&&(newline[ra]=='#'))
+                {
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x1FC)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    //sub sp,#immed_7*4
+                    mem[curradd]=0xB080|(rx>>2);
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    printf("<%u> Error: Invalid rd register\n",line);
+                    return(1);
+                }
+            }
+            else
+            {
+                //sub rdlo,
+                if(newline[ra]=='#')
+                {
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0xFF)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    //sub rd,#immed_8
+                    mem[curradd]=0x3800|(rd<<8)|rx;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //sub rdlo,r?
+                    ra=parse_low_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    {
+                        //sub rlo,rlo
+                        ra=parse_comma(ra); if(ra==0) return(1);
+                        if(newline[ra]=='#')
+                        {
+                            rn=rm;
+                            ra=parse_character(ra,'#'); if(ra==0) return(1);
+                            ra=parse_immed(ra); if(ra==0) return(1);
+                            if((rx&0x7)!=rx)
+                            {
+                                printf("<%u> Error: Invalid immediate\n",line);
+                                return(1);
+                            }
+                            //sub rd,rm,#immed_3
+                            mem[curradd]=0x1E00|(rx<<6)|(rn<<3)|rd;
+                            mark[curradd]=0x8000;
+                            curradd++;
+                        }
+                        else
+                        {
+                            //sub rd,rn,rm
+                            rn=rm;
+                            ra=parse_low_reg(ra); if(ra==0) return(1);
+                            rm=rx;
+                            mem[curradd]=0x1A00|(rm<<6)|(rn<<3)|rd;
+                            mark[curradd]=0x8000;
+                            curradd++;
+                        }
+                    }
+                }
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// swi -----------------------------------------------------------
+        if(strncmp(&newline[ra],"swi ",4)==0)
+        {
+            ra+=4;
+            //swi immed_8
+            ra=parse_immed(ra); if(ra==0) return(1);
+            if((rx&0xFF)!=rx)
+            {
+                printf("<%u> Error: Invalid immediate\n",line);
+                return(1);
+            }
+            mem[curradd]=0xDF00|rx;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// tst -----------------------------------------------------------
+        if(strncmp(&newline[ra],"tst ",4)==0)
+        {
+            ra+=4;
+            //tst rn,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x4200|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+//-------------------------------------------------------------------
+// pseudo instructions
+//-------------------------------------------------------------------
+// nop -----------------------------------------------------------
+        if(strncmp(&newline[ra],"nop",3)==0)
+        {
+            ra+=3;
+            if(rest_of_line(ra)) return(1);
+            //nop, encode mov r8,r8
+            mem[curradd]=0x46C0;
+            mark[curradd]=0x8000;
+            curradd++;
+            continue;
+        }
 
 
 // -----------------------------------------------------------
         printf("<%u> Error: syntax error\n",line);
         return(1);
     }
+
+    //mem[curradd]=0x46c0;
+    //mark[curradd]=0x8000;
+    //curradd++;
+
     return(0);
 }
 //-------------------------------------------------------------------
-void dissassemble ( unsigned short inst )
+void dissassemble ( FILE *fp, unsigned int addr, unsigned short inst )
 {
     if((inst&0xFFC0)==0x4140)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("adc r%u,r%u",rd,rm);
+        fprintf(fp,"adc r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFE00)==0x1C00)
@@ -1395,14 +1831,14 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rx=(inst>>6)&7;
-        printf("add r%u,r%u,#%u",rd,rn,rx);
+        fprintf(fp,"add r%u,r%u,#%u",rd,rn,rx);
         return;
     }
     if((inst&0xF800)==0x3000)
     {
         rd=(inst>>8)&7;
         rx=inst&0xFF;
-        printf("add r%u,#0x%02X ; %u",rd,rx,rx);
+        fprintf(fp,"add r%u,#0x%02X ; %u",rd,rx,rx);
         return;
     }
     if((inst&0xFE00)==0x1800)
@@ -1410,7 +1846,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("add r%u,r%u,r%u",rd,rn,rm);
+        fprintf(fp,"add r%u,r%u,r%u",rd,rn,rm);
         return;
     }
     if((inst&0xFF00)==0x4400)
@@ -1418,7 +1854,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rd|=(inst>>4)&8;
         rm=(inst>>3)&0xF;
-        printf("add r%u,r%u",rd,rm);
+        fprintf(fp,"add r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xF800)==0xA000)
@@ -1426,7 +1862,7 @@ void dissassemble ( unsigned short inst )
         rd=(inst>>8)&7;
         rx=inst&0xFF;
         rx<<=2;
-        printf("add r%u,pc,#0x%03X ; %u",rd,rx,rx);
+        fprintf(fp,"add r%u,pc,#0x%03X ; %u",rd,rx,rx);
         return;
     }
     if((inst&0xF800)==0xA800)
@@ -1434,21 +1870,21 @@ void dissassemble ( unsigned short inst )
         rd=(inst>>8)&7;
         rx=inst&0xFF;
         rx<<=2;
-        printf("add r%u,sp,#0x%03X ; %u",rd,rx,rx);
+        fprintf(fp,"add r%u,sp,#0x%03X ; %u",rd,rx,rx);
         return;
     }
     if((inst&0xFF80)==0xB000)
     {
         rx=inst&0x7F;
         rx<<=2;
-        printf("add sp,#0x%03X ; %u",rx,rx);
+        fprintf(fp,"add sp,#0x%03X ; %u",rx,rx);
         return;
     }
     if((inst&0xFFC0)==0x4000)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("and r%u,r%u",rd,rm);
+        fprintf(fp,"and r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xF800)==0x1000)
@@ -1457,56 +1893,119 @@ void dissassemble ( unsigned short inst )
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F;
         if(rx==0) rx=32;
-        printf("asr r%u,r%u,#%u",rd,rm,rx);
+        fprintf(fp,"asr r%u,r%u,#%u",rd,rm,rx);
         return;
     }
     if((inst&0xFFC0)==0x4100)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("asr r%u,r%u",rd,rm);
+        fprintf(fp,"asr r%u,r%u",rd,rm);
         return;
     }
-// b -----------------------------------------------------------
+    if((inst&0xF000)==0xD000)
+    {
+        rx=inst&0xFF;
+        rm=(inst>>8)&0xF;
+        if(rx&0x80) rd=0xFFFFFFFF;
+        else        rd=0x00000000;
+        rd<<=9;
+        rd|=rx<<1;
+        rd+=addr+4;
+        switch(rm)
+        {
+            case 0x0: fprintf(fp,"beq 0x%08X",rd); return;
+            case 0x1: fprintf(fp,"bne 0x%08X",rd); return;
+            case 0x2: fprintf(fp,"bcs 0x%08X",rd); return;
+            case 0x3: fprintf(fp,"bcc 0x%08X",rd); return;
+            case 0x4: fprintf(fp,"bmi 0x%08X",rd); return;
+            case 0x5: fprintf(fp,"bpl 0x%08X",rd); return;
+            case 0x6: fprintf(fp,"bvs 0x%08X",rd); return;
+            case 0x7: fprintf(fp,"bvc 0x%08X",rd); return;
+            case 0x8: fprintf(fp,"bhi 0x%08X",rd); return;
+            case 0x9: fprintf(fp,"bls 0x%08X",rd); return;
+            case 0xA: fprintf(fp,"bge 0x%08X",rd); return;
+            case 0xB: fprintf(fp,"blt 0x%08X",rd); return;
+            case 0xC: fprintf(fp,"bgt 0x%08X",rd); return;
+            case 0xD: fprintf(fp,"ble 0x%08X",rd); return;
+            case 0xE: fprintf(fp,"bal 0x%08X",rd); return;
+            //case 0xF:
+        }
+    }
     if((inst&0xFFC0)==0x4380)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("bic r%u,r%u",rd,rm);
+        fprintf(fp,"bic r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFF00)==0xBE00)
     {
         rx=inst&0xFF;
-        printf("bkpt 0x%02X ; %u",rx,rx);
+        fprintf(fp,"bkpt 0x%02X ; %u",rx,rx);
         return;
     }
-// bl -----------------------------------------------------------
+    if((inst&0xE000)==0xE000)
+    {
+        rx=inst&0x07FF;
+        rm=(inst>>11)&0x3;
+        switch(rm)
+        {
+            case 0:
+            {
+                if(rx&(1<<10)) rd=0xFFFFFFFF;
+                else           rd=0x00000000;
+                rd<<=12;
+                rd|=rx<<1;
+                rd+=addr+4;
+                fprintf(fp,"b 0x%08X",rd);
+                return;
+            }
+            case 2:
+            {
+                fprintf(fp,";bl upper");
+                bl_upper=rx;
+                return;
+            }
+            case 3:
+            {
+                if(bl_upper&(1<<10)) rd=0xFFFFFFFF;
+                else                 rd=0x00000000;
+                rd<<=11;
+                rd|=bl_upper;
+                rd<<=12;
+                rd|=rx<<1;
+                rd+=addr+(4-2);
+                fprintf(fp,"bl 0x%08X",rd);
+                return;
+            }
+        }
+    }
     if((inst&0xFF87)==0x4700)
     {
         rm=(inst>>3)&0xF;
-        printf("bx r%u",rm);
+        fprintf(fp,"bx r%u",rm);
         return;
     }
     if((inst&0xFFC0)==0x42C0)
     {
         rn=inst&7;
         rm=(inst>>3)&7;
-        printf("cmn r%u,r%u",rn,rm);
+        fprintf(fp,"cmn r%u,r%u",rn,rm);
         return;
     }
     if((inst&0xF800)==0x2800)
     {
         rx=inst&0xFF;
-        rn=(inst>>3)&7;
-        printf("cmp r%u,#0x%02X ; %u",rn,rx,rx);
+        rn=(inst>>8)&7;
+        fprintf(fp,"cmp r%u,#0x%02X ; %u",rn,rx,rx);
         return;
     }
     if((inst&0xFFC0)==0x4280)
     {
         rn=inst&7;
         rm=(inst>>3)&7;
-        printf("cmp r%u,r%u",rn,rm);
+        fprintf(fp,"cmp r%u,r%u",rn,rm);
         return;
     }
     if((inst&0xFF00)==0x4500)
@@ -1514,26 +2013,26 @@ void dissassemble ( unsigned short inst )
         rn=inst&7;
         rn|=(inst>>4)&8;
         rm=(inst>>3)&0xF;
-        printf("cmp r%u,r%u",rn,rm);
+        fprintf(fp,"cmp r%u,r%u",rn,rm);
         return;
     }
     if((inst&0xFFC0)==0x4040)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("eor r%u,r%u",rd,rm);
+        fprintf(fp,"eor r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xF800)==0xC800)
     {
         rm=inst&0xFF;
-        rn=(inst>>3)&7;
-        printf("ldmia r%u!,{",rn);
+        rn=(inst>>8)&7;
+        fprintf(fp,"ldmia r%u!,{",rn);
         for(rx=0;rx<8;rx++)
         {
             if(rm&(1<<rx))
             {
-                printf("r%u",rx);
+                fprintf(fp,"r%u",rx);
                 break;
             }
         }
@@ -1541,10 +2040,10 @@ void dissassemble ( unsigned short inst )
         {
             if(rm&(1<<rx))
             {
-                printf(",r%u",rx);
+                fprintf(fp,",r%u",rx);
             }
         }
-        printf("}");
+        fprintf(fp,"}");
         return;
     }
     if((inst&0xF800)==0x6800)
@@ -1552,8 +2051,8 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F; rx<<=2;
-        if(rx==0) printf("ldr r%u,[r%u]",rd,rm);
-        else      printf("ldr r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        if(rx==0) fprintf(fp,"ldr r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"ldr r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
         return;
     }
     if((inst&0xFE00)==0x5800)
@@ -1561,23 +2060,23 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("ldr r%u,[r%u,r%u]",rd,rn,rm);
+        fprintf(fp,"ldr r%u,[r%u,r%u]",rd,rn,rm);
         return;
     }
     if((inst&0xF800)==0x4800)
     {
         rx=inst&0xFF; rx<<=2;
         rd=(inst>>8)&7;
-        if(rx==0) printf("ldr r%u,[pc]",rd);
-        else      printf("ldr r%u,[pc,#0x%03X] ; %u",rd,rx,rx);
+        if(rx==0) fprintf(fp,"ldr r%u,[pc]",rd);
+        else      fprintf(fp,"ldr r%u,[pc,#0x%03X] ; %u",rd,rx,rx);
         return;
     }
     if((inst&0xF800)==0x9800)
     {
         rx=inst&0xFF; rx<<=2;
         rd=(inst>>8)&7;
-        if(rx==0) printf("ldr r%u,[sp]",rd);
-        else      printf("ldr r%u,[sp,#0x%03X] ; %u",rd,rx,rx);
+        if(rx==0) fprintf(fp,"ldr r%u,[sp]",rd);
+        else      fprintf(fp,"ldr r%u,[sp,#0x%03X] ; %u",rd,rx,rx);
         return;
     }
     if((inst&0xF800)==0x7800)
@@ -1585,8 +2084,8 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F; rx<<=0;
-        if(rx==0) printf("ldrb r%u,[r%u]",rd,rm);
-        else      printf("ldrb r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        if(rx==0) fprintf(fp,"ldrb r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"ldrb r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
         return;
     }
     if((inst&0xFE00)==0x5C00)
@@ -1594,7 +2093,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("ldrb r%u,[r%u,r%u]",rd,rn,rm);
+        fprintf(fp,"ldrb r%u,[r%u,r%u]",rd,rn,rm);
         return;
     }
     if((inst&0xF800)==0x8800)
@@ -1602,8 +2101,8 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F; rx<<=1;
-        if(rx==0) printf("ldrh r%u,[r%u]",rd,rm);
-        else      printf("ldrh r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        if(rx==0) fprintf(fp,"ldrh r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"ldrh r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
         return;
     }
     if((inst&0xFE00)==0x5A00)
@@ -1611,7 +2110,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("ldrh r%u,[r%u,r%u]",rd,rn,rm);
+        fprintf(fp,"ldrh r%u,[r%u,r%u]",rd,rn,rm);
         return;
     }
     if((inst&0xFE00)==0x5600)
@@ -1619,7 +2118,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("ldrsb r%u,[r%u,r%u]",rd,rn,rm);
+        fprintf(fp,"ldrsb r%u,[r%u,r%u]",rd,rn,rm);
         return;
     }
     if((inst&0xFE00)==0x5E00)
@@ -1627,7 +2126,7 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rn=(inst>>3)&7;
         rm=(inst>>6)&7;
-        printf("ldrsh r%u,[r%u,r%u]",rd,rn,rm);
+        fprintf(fp,"ldrsh r%u,[r%u,r%u]",rd,rn,rm);
         return;
     }
     if((inst&0xF800)==0x0000)
@@ -1635,14 +2134,14 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F; if(rx==0) rx=32;
-        printf("lsl r%u,r%u,#%u",rd,rm,rx);
+        fprintf(fp,"lsl r%u,r%u,#%u",rd,rm,rx);
         return;
     }
     if((inst&0xFFC0)==0x4080)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("lsl r%u,r%u",rd,rm);
+        fprintf(fp,"lsl r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xF800)==0x0800)
@@ -1650,107 +2149,259 @@ void dissassemble ( unsigned short inst )
         rd=inst&7;
         rm=(inst>>3)&7;
         rx=(inst>>6)&0x1F; if(rx==0) rx=32;
-        printf("lsr r%u,r%u,#%u",rd,rm,rx);
+        fprintf(fp,"lsr r%u,r%u,#%u",rd,rm,rx);
         return;
     }
     if((inst&0xFFC0)==0x40C0)
     {
         rd=inst&7;
         rm=(inst>>3)&7;
-        printf("lsr r%u,r%u",rd,rm);
+        fprintf(fp,"lsr r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xF800)==0x2000)
     {
         rx=inst&0xFF;
         rd=(inst>>8)&7;
-        printf("mov r%u,#0x%02X ; %u",rd,rx,rx);
+        fprintf(fp,"mov r%u,#0x%02X ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x1C00)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        fprintf(fp,"mov r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xFF00)==0x4600)
+    {
+        rd=inst&7;
+        rd|=(inst>>4)&8;
+        rm=(inst>>3)&0xF;
+        fprintf(fp,"mov r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFFC0)==0x4340)
     {
-        rn=inst&7;
+        rd=inst&7;
         rm=(inst>>3)&7;
-        printf("mul r%u,r%u",rn,rm);
+        fprintf(fp,"mul r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFFC0)==0x43C0)
     {
-        rn=inst&7;
+        rd=inst&7;
         rm=(inst>>3)&7;
-        printf("mvn r%u,r%u",rn,rm);
+        fprintf(fp,"mvn r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFFC0)==0x4240)
     {
-        rn=inst&7;
+        rd=inst&7;
         rm=(inst>>3)&7;
-        printf("neg r%u,r%u",rn,rm);
+        fprintf(fp,"neg r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFFC0)==0x4300)
     {
-        rn=inst&7;
+        rd=inst&7;
         rm=(inst>>3)&7;
-        printf("orr r%u,r%u",rn,rm);
+        fprintf(fp,"orr r%u,r%u",rd,rm);
         return;
     }
     if((inst&0xFE00)==0xBC00)
     {
         rm=inst&0xFF;
         rn=inst&0x100;
-        printf("pop {");
-        for(rx=0;rx<7;rx++)
+        fprintf(fp,"pop {");
+        for(rx=0;rx<8;rx++)
         {
             if(rm&(1<<rx))
             {
-                printf("r%u",rx);
+                fprintf(fp,"r%u",rx);
                 break;
             }
         }
-        for(rx++;rx<7;rx++)
+        for(rx++;rx<8;rx++)
         {
             if(rm&(1<<rx))
             {
-                printf(",r%u",rx);
-                break;
+                fprintf(fp,",r%u",rx);
             }
         }
         if(rn)
         {
-            if(rm==0) printf("pc");
-            else      printf(",pc");
+            if(rm==0) fprintf(fp,"pc");
+            else      fprintf(fp,",pc");
         }
-        printf("}");
+        fprintf(fp,"}");
         return;
     }
     if((inst&0xFE00)==0xB400)
     {
         rm=inst&0xFF;
         rn=inst&0x100;
-        printf("push {");
-        for(rx=0;rx<7;rx++)
+        fprintf(fp,"push {");
+        for(rx=0;rx<8;rx++)
         {
             if(rm&(1<<rx))
             {
-                printf("r%u",rx);
+                fprintf(fp,"r%u",rx);
                 break;
             }
         }
-        for(rx++;rx<7;rx++)
+        for(rx++;rx<8;rx++)
         {
             if(rm&(1<<rx))
             {
-                printf(",r%u",rx);
-                break;
+                fprintf(fp,",r%u",rx);
             }
         }
         if(rn)
         {
-            if(rm==0) printf("lr");
-            else      printf(",lr");
+            if(rm==0) fprintf(fp,"lr");
+            else      fprintf(fp,",lr");
         }
-        printf("}");
+        fprintf(fp,"}");
+        return;
+    }
+    if((inst&0xFFC0)==0x41C0)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        fprintf(fp,"ror r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xFFC0)==0x4180)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        fprintf(fp,"sbc r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xF800)==0xC000)
+    {
+        rm=inst&0xFF;
+        rn=(inst>>8)&7;
+        fprintf(fp,"stmia r%u!,{",rn);
+        for(rx=0;rx<8;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                fprintf(fp,"r%u",rx);
+                break;
+            }
+        }
+        for(rx++;rx<8;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                fprintf(fp,",r%u",rx);
+            }
+        }
+        fprintf(fp,"}");
+        return;
+    }
+    if((inst&0xF800)==0x6000)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=2;
+        if(rx==0) fprintf(fp,"str r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"str r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5000)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        fprintf(fp,"str r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x9000)
+    {
+        rx=inst&0xFF; rx<<=2;
+        rd=(inst>>8)&7;
+        if(rx==0) fprintf(fp,"str r%u,[sp]",rd);
+        else      fprintf(fp,"str r%u,[sp,#0x%03X] ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xF800)==0x7000)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=0;
+        if(rx==0) fprintf(fp,"strb r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"strb r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5400)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        fprintf(fp,"strb r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x8000)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=1;
+        if(rx==0) fprintf(fp,"strh r%u,[r%u]",rd,rm);
+        else      fprintf(fp,"strh r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5200)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        fprintf(fp,"strh r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xFE00)==0x1E00)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rx=(inst>>6)&7;
+        fprintf(fp,"sub r%u,r%u,#%u",rd,rn,rx);
+        return;
+    }
+    if((inst&0xF800)==0x3800)
+    {
+        rd=(inst>>8)&7;
+        rx=inst&0xFF;
+        fprintf(fp,"sub r%u,#0x%02X ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x1A00)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        fprintf(fp,"sub r%u,r%u,r%u",rd,rn,rm);
+        return;
+    }
+    if((inst&0xFF80)==0xB080)
+    {
+        rx=inst&0x7F;
+        rx<<=2;
+        fprintf(fp,"sub sp,#0x%03X ; %u",rx,rx);
+        return;
+    }
+    if((inst&0xFF00)==0xDF00)
+    {
+        rx=inst&0x7F;
+        fprintf(fp,"swi 0x%02X ; %u",rx,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x4200)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        fprintf(fp,"tst r%u,r%u",rn,rm);
         return;
     }
 
@@ -1759,12 +2410,7 @@ void dissassemble ( unsigned short inst )
 
 
 
-
-
-
-
-
-    printf("UNKNOWN");
+    fprintf(fp,"UNKNOWN");
 }
 //-------------------------------------------------------------------
 int main ( int argc, char *argv[] )
@@ -1798,6 +2444,88 @@ int main ( int argc, char *argv[] )
     for(ra=0;ra<nlabs;ra++)
     {
         printf("label%04u: [0x%08X] [%s] %u\n",ra,lab_struct[ra].addr,lab_struct[ra].name,lab_struct[ra].type);
+        if(lab_struct[ra].type==1)
+        {
+            for(rb=0;rb<nlabs;rb++)
+            {
+                if(lab_struct[rb].type) continue;
+                if(strcmp(lab_struct[ra].name,lab_struct[rb].name)==0)
+                {
+                    rx=lab_struct[rb].addr;
+                    inst=mem[lab_struct[ra].addr];
+                    line=lab_struct[ra].line;
+                    if((inst&0xF000)==0xD000)
+                    {
+                        //bcond signed_immed_8
+                        rd=rx-((lab_struct[ra].addr<<1)+4);
+                        rm=0xFFFFFFFF;
+                        rm<<=8;
+                        if(rd&rm)
+                        {
+                            if((rd&rm)!=rm)
+                            {
+                                printf("<%u> Error: Branch destination too far\n",line);
+                                return(1);
+                            }
+                        }
+                        inst|=(rd>>1)&0xFF;
+                        lab_struct[ra].type++;
+                    }
+                    if((inst&0xF000)==0xE000)
+                    {
+                        //b signed_immed_11
+                        rd=rx-((lab_struct[ra].addr<<1)+4);
+                        rm=0xFFFFFFFF;
+                        rm<<=11;
+                        if(rd&rm)
+                        {
+                            if((rd&rm)!=rm)
+                            {
+                                printf("<%u> Error: Branch destination too far\n",line);
+                                return(1);
+                            }
+                        }
+                        inst|=(rd>>1)&0x7FF;
+                        lab_struct[ra].type++;
+                    }
+                    if((inst&0xF800)==0xF000)
+                    {
+                        inst2=mem[lab_struct[ra].addr+1];
+                        if((inst2&0xF800)!=0xF800)
+                        {
+                            printf("<%u> Error: bl should be a pair of instructions (internal error)\n",line);
+                            return(1);
+                        }
+                        rd=rx-((lab_struct[ra].addr<<1)+4);
+                        rm=0xFFFFFFFF;
+                        rm<<=22;
+                        if(rd&rm)
+                        {
+                            if((rd&rm)!=rm)
+                            {
+                                printf("<%u> Error: Branch destination too far\n",line);
+                            }
+                        }
+                        inst|=(rd>>12)&0x7FF;
+                        inst2|=(rd>>1)&0x7FF;
+                        mem[lab_struct[ra].addr+1]=inst2;
+                        lab_struct[ra].type++;
+                    }
+                    if(lab_struct[ra].type==1)
+                    {
+                        printf("<%u> Error: internal error, unknown instruction 0x%08X\n",lab_struct[ra].line,inst);
+                        return(1);
+                    }
+                    mem[lab_struct[ra].addr]=inst;
+                    break;
+                }
+            }
+            if(rb<nlabs) ; else
+            {
+                printf("<%u> Error: unresolved label\n",lab_struct[ra].line);
+                return(1);
+            }
+        }
     }
 
     sprintf(newline,"%s.hex",argv[1]);
@@ -1814,7 +2542,7 @@ int main ( int argc, char *argv[] )
         if(mark[ra]&0x8000)
         {
             printf("0x%08X: 0x%04X ",curradd,mem[ra]);
-            dissassemble(mem[ra]);
+            dissassemble(stdout,curradd,mem[ra]);
             printf("\n");
 
             //rb=0x04;
@@ -1832,6 +2560,44 @@ int main ( int argc, char *argv[] )
 
     fclose(fpout);
 
+
+    sprintf(newline,"%s.s",argv[1]);
+    fpout=fopen(newline,"wt");
+    if(fpout==NULL)
+    {
+        printf("Error creating file [%s]\n",newline);
+        return(1);
+    }
+    for(ra=0;ra<=ADDMASK;ra++)
+    {
+        curradd=(ra<<1);
+        if(mark[ra]&0x8000)
+        {
+            //fprintf(fpout,"0x%08X: 0x%04X ",curradd,mem[ra]);
+            dissassemble(fpout,curradd,mem[ra]);
+            fprintf(fpout,"\n");
+        }
+    }
+    fclose(fpout);
+
+    sprintf(newline,"%s.diss",argv[1]);
+    fpout=fopen(newline,"wt");
+    if(fpout==NULL)
+    {
+        printf("Error creating file [%s]\n",newline);
+        return(1);
+    }
+    for(ra=0;ra<=ADDMASK;ra++)
+    {
+        curradd=(ra<<1);
+        if(mark[ra]&0x8000)
+        {
+            fprintf(fpout,"0x%08X: 0x%04X ",curradd,mem[ra]);
+            dissassemble(fpout,curradd,mem[ra]);
+            fprintf(fpout,"\n");
+        }
+    }
+    fclose(fpout);
 
     return(0);
 }
