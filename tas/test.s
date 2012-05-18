@@ -38,3 +38,20 @@ cmp r14,r13
 eor r2,r6
 
 ldmia r2!,{r3,r1,r7}
+
+ldr r3,[r4]
+ldr r3,[r4,r5]
+ldr r3,[r4,#0x10]
+ldr r5,[pc]
+ldr r6,[sp]
+ldr r1,[pc,#0x10]
+ldr r0,[sp,#8]
+
+ldrb r5,[r6]
+ldrb r5,[r7,#8]
+ldrb r5,[r3, # 3]
+
+ldrsb r1,[r2,r3]
+ldrsb r7,[r6,r5]
+ldrsh r3,[r4,r5]
+

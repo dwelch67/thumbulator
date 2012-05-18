@@ -131,6 +131,7 @@ unsigned int parse_immed ( unsigned int ra )
         rb=0;
         for(;newline[ra];ra++)
         {
+            if(newline[ra]==']') break;
             if(newline[ra]==0x20) break;
             if(!hexchar[newline[ra]])
             {
@@ -152,6 +153,7 @@ unsigned int parse_immed ( unsigned int ra )
         rb=0;
         for(;newline[ra];ra++)
         {
+            if(newline[ra]==']') break;
             if(newline[ra]==0x20) break;
             if(!numchar[newline[ra]])
             {
@@ -206,6 +208,7 @@ unsigned int parse_low_reg ( unsigned int ra )
         if(newline[ra]==',') break;
         if(newline[ra]=='!') break;
         if(newline[ra]=='}') break;
+        if(newline[ra]==']') break;
         if(newline[ra]==0x20) break;
         cstring[rb++]=newline[ra];
     }
@@ -793,7 +796,7 @@ int assemble ( void )
                         //ldr rd,[rn,#immed_5*4]
                         ra=parse_character(ra,'#'); if(ra==0) return(1);
                         ra=parse_immed(ra); if(ra==0) return(1);
-                        if((rx&0x3C)!=rx)
+                        if((rx&0x7C)!=rx)
                         {
                             printf("<%u> Error: Invalid immediate\n",line);
                             return(1);
@@ -806,29 +809,571 @@ int assemble ( void )
                     else
                     {
                         //ldr rd,[rn,rm]
+                        ra=parse_low_reg(ra); if(ra==0) return(1);
+                        rm=rx;
+                        ra=parse_character(ra,']'); if(ra==0) return(1);
+                        mem[curradd]=0x5800|(rm<<6)|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
                     }
                 }
                 else
                 {
                     //ldr rd,[rn] immed_5 = 0
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x6800|(0<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
                 }
-                syntax error
             }
             if(rest_of_line(ra)) return(1);
             continue;
         }
-//// nop -----------------------------------------------------------
-        //if(strncmp(&newline[ra],"nop",3)==0)
-        //{
-            //ra+=3;
-            ////nop
-            ////printf("<%u> nop is a pseudo instruction for sll $0,$0,0\n",line);
-            //mem[curradd]=0x00000000;
-            //mark[curradd]|=0x8000;
-            //curradd++;
-            //if(rest_of_line(ra)) return(1);
-            //continue;
-        //}
+// ldrb -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldrb ",5)==0)
+        {
+            ra+=5;
+            //ldrb rd,[rn,#immed_5]
+            //ldrb rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                if(newline[ra]=='#')
+                {
+                    //ldrb rd,[rn,#immed_5]
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x1F)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x7800|((rx>>0)<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //ldrb rd,[rn,rm]
+                    ra=parse_low_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x5C00|(rm<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+            }
+            else
+            {
+                //ldrb rd,[rn] immed_5 = 0
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                mem[curradd]=0x7800|(0<<6)|(rn<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ldrh -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldrh ",5)==0)
+        {
+            ra+=5;
+            //ldrh rd,[rn,#immed_5]
+            //ldrh rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                if(newline[ra]=='#')
+                {
+                    //ldrh rd,[rn,#immed_5]
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x3E)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x8800|((rx>>1)<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    //ldrb rd,[rn,rm]
+                    ra=parse_low_reg(ra); if(ra==0) return(1);
+                    rm=rx;
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x5A00|(rm<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+            }
+            else
+            {
+                //ldrh rd,[rn] immed_5 = 0
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                mem[curradd]=0x8800|(0<<6)|(rn<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ldrsb -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldrsb ",6)==0)
+        {
+            ra+=6;
+            //ldrsb rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rm=rx;
+            ra=parse_character(ra,']'); if(ra==0) return(1);
+            mem[curradd]=0x5600|(rm<<6)|(rn<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ldrsh -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ldrsh ",6)==0)
+        {
+            ra+=6;
+            //ldrsh rd,[rn,rm]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rm=rx;
+            ra=parse_character(ra,']'); if(ra==0) return(1);
+            mem[curradd]=0x5E00|(rm<<6)|(rn<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// lsl -----------------------------------------------------------
+        if(strncmp(&newline[ra],"lsl ",4)==0)
+        {
+            ra+=4;
+            //lsl rd,rm,#immed_5
+            //lsl rd,rs
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rm=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                ra=parse_character(ra,'#'); if(ra==0) return(1);
+                ra=parse_immed(ra); if(ra==0) return(1);
+                if((rx<1)||(rx>32))
+                {
+                    printf("<%u> Error: Invalid immediate\n",line);
+                    return(1);
+                }
+                rx&=0x1F;
+                //lsl rd,rm,#immed_5
+                mem[curradd]=0x0000|(rx<<6)|(rm<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                //lsl rd,rs
+                mem[curradd]=0x4080|(rm<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// lsr -----------------------------------------------------------
+        if(strncmp(&newline[ra],"lsr ",4)==0)
+        {
+            ra+=4;
+            //lsr rd,rm,#immed_5
+            //lsr rd,rs
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rm=rx;
+            if(newline[ra]==',')
+            {
+                ra=parse_comma(ra); if(ra==0) return(1);
+                ra=parse_character(ra,'#'); if(ra==0) return(1);
+                ra=parse_immed(ra); if(ra==0) return(1);
+                if((rx<1)||(rx>32))
+                {
+                    printf("<%u> Error: Invalid immediate\n",line);
+                    return(1);
+                }
+                rx&=0x1F;
+                //lsr rd,rm,#immed_5
+                mem[curradd]=0x0800|(rx<<6)|(rm<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                //lsr rd,rs
+                mem[curradd]=0x40C0|(rm<<3)|rd;
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// mov -----------------------------------------------------------
+        if(strncmp(&newline[ra],"mov ",4)==0)
+        {
+            ra+=4;
+            //mov rd,#immed_8
+            //mov rd,rn low
+            //mov rd,rm one or both high
+            ra=parse_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            if(rd>7)
+            {
+                ra=parse_reg(ra); if(ra==0) return(1);
+                rm=rx;
+                //mov rd,rm
+                mem[curradd]=0x4600|((rd&8)<<4)|(rm<<3)|(rd&7);
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                if(newline[ra]=='#')
+                {
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0xFF)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                    //mov rd,#immed_8
+                    mem[curradd]=0x2000|(rd<<8)|rx;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+                else
+                {
+                    ra=parse_reg(ra); if(ra==0) return(1);
+                    if(rx>7)
+                    {
+                        rm=rx;
+                        //mov rd,rm
+                        mem[curradd]=0x4600|((rd&8)<<4)|(rm<<3)|(rd&7);
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                    else
+                    {
+                        rn=rx;
+                        //mov rd,rn both low
+                        mem[curradd]=0x1C00|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                }
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// mul -----------------------------------------------------------
+        if(strncmp(&newline[ra],"mul ",4)==0)
+        {
+            ra+=4;
+            //mul rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            if(rd==rm)
+            {
+                printf("<%u> Warning: using the same register might not work\n",line);
+            }
+            mem[curradd]=0x4340|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// mvn -----------------------------------------------------------
+        if(strncmp(&newline[ra],"mvn ",4)==0)
+        {
+            ra+=4;
+            //mvn rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x43C0|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// neg -----------------------------------------------------------
+        if(strncmp(&newline[ra],"neg ",4)==0)
+        {
+            ra+=4;
+            //neg rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x4240|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// orr -----------------------------------------------------------
+        if(strncmp(&newline[ra],"orr ",4)==0)
+        {
+            ra+=4;
+            //orr rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x4300|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// pop -----------------------------------------------------------
+        if(strncmp(&newline[ra],"pop ",4)==0)
+        {
+            ra+=4;
+            //pop {r0,r1,...,r7}
+            ra=parse_character(ra,'{'); if(ra==0) return(1);
+            rm=0;
+            while(1)
+            {
+                ra=parse_reg(ra); if(ra==0) return(1);
+                if(rx>7)
+                {
+                    if(rx!=15)
+                    {
+                        printf("<%u> Error: Invalid Register\n",line);
+                        return(1);
+                    }
+                    rx=8;
+                }
+                rm|=(1<<rx);
+                if(newline[ra]=='}')
+                {
+                    ra=parse_character(ra,'}'); if(ra==0) return(1);
+                    break;
+                }
+            }
+            mem[curradd]=0xBC00|rm;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// push -----------------------------------------------------------
+        if(strncmp(&newline[ra],"push ",5)==0)
+        {
+            ra+=5;
+            //push {r0,r1,...,r7}
+            ra=parse_character(ra,'{'); if(ra==0) return(1);
+            rm=0;
+            while(1)
+            {
+                ra=parse_reg(ra); if(ra==0) return(1);
+                if(rx>7)
+                {
+                    if(rx!=14)
+                    {
+                        printf("<%u> Error: Invalid Register\n",line);
+                        return(1);
+                    }
+                    rx=8;
+                }
+                rm|=(1<<rx);
+                if(newline[ra]=='}')
+                {
+                    ra=parse_character(ra,'}'); if(ra==0) return(1);
+                    break;
+                }
+            }
+            mem[curradd]=0xB400|rm;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// ror -----------------------------------------------------------
+        if(strncmp(&newline[ra],"ror ",4)==0)
+        {
+            ra+=4;
+            //ror rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x41C0|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// sbc -----------------------------------------------------------
+        if(strncmp(&newline[ra],"sbc ",4)==0)
+        {
+            ra+=4;
+            //ror rd,rm
+            ra=parse_two_regs(ra); if(ra==0) return(1);
+            mem[curradd]=0x4180|(rm<<3)|rd;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// stmia -----------------------------------------------------------
+        if(strncmp(&newline[ra],"stmia ",6)==0)
+        {
+            ra+=6;
+            //stmia rn!,{r0,r1,...,r7}
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            ra=parse_character(ra,'!'); if(ra==0) return(1);
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'{'); if(ra==0) return(1);
+            rm=0;
+            while(1)
+            {
+                ra=parse_low_reg(ra); if(ra==0) return(1);
+                if(rm&(1<<rx))
+                {
+                    printf("<%u> Warning: You already specified r%u\n",line,rx);
+                }
+                rm|=(1<<rx);
+                if(newline[ra]=='}')
+                {
+                    ra++;
+                    break;
+                }
+                ra=parse_comma(ra); if(ra==0) return(1);
+            }
+            mem[curradd]=0xC000|(rn<<8)|rm;
+            mark[curradd]=0x8000;
+            curradd++;
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// str -----------------------------------------------------------
+        if(strncmp(&newline[ra],"str ",4)==0)
+        {
+            ra+=4;
+            //ldr rd,[rn,#immed_5*4]
+            //ldr rd,[rn,rm]
+            //ldr rd,[sp,#immed_8*4]
+            ra=parse_low_reg(ra); if(ra==0) return(1);
+            rd=rx;
+            ra=parse_comma(ra); if(ra==0) return(1);
+            ra=parse_character(ra,'['); if(ra==0) return(1);
+            ra=parse_reg(ra); if(ra==0) return(1);
+            rn=rx;
+            if(rx>7)
+            {
+                if(rn!=13)
+                {
+                    printf("<%u> Error: Invalid base register\n",line);
+                    return(1);
+                }
+                if(newline[ra]==']')
+                {
+                    rx=0;
+                }
+                else
+                {
+                    ra=parse_comma(ra); if(ra==0) return(1);
+                    ra=parse_character(ra,'#'); if(ra==0) return(1);
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    if((rx&0x3FC)!=rx)
+                    {
+                        printf("<%u> Error: Invalid immediate\n",line);
+                        return(1);
+                    }
+                }
+                ra=parse_character(ra,']'); if(ra==0) return(1);
+                //str rd,[sp,#immed_8*4]
+                mem[curradd]=0x9000|(rd<<8)|(rx>>2);
+                mark[curradd]=0x8000;
+                curradd++;
+            }
+            else
+            {
+                if(newline[ra]==',')
+                {
+                    ra=parse_comma(ra); if(ra==0) return(1);
+                    if(newline[ra]=='#')
+                    {
+                        //str rd,[rn,#immed_5*4]
+                        ra=parse_character(ra,'#'); if(ra==0) return(1);
+                        ra=parse_immed(ra); if(ra==0) return(1);
+                        if((rx&0x7C)!=rx)
+                        {
+                            printf("<%u> Error: Invalid immediate\n",line);
+                            return(1);
+                        }
+                        ra=parse_character(ra,']'); if(ra==0) return(1);
+                        mem[curradd]=0x6000|((rx>>2)<<6)|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                    else
+                    {
+                        //ldr rd,[rn,rm]
+                        ra=parse_low_reg(ra); if(ra==0) return(1);
+                        rm=rx;
+                        ra=parse_character(ra,']'); if(ra==0) return(1);
+                        mem[curradd]=0x5000|(rm<<6)|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                }
+                else
+                {
+                    //ldr rd,[rn] immed_5 = 0
+                    ra=parse_character(ra,']'); if(ra==0) return(1);
+                    mem[curradd]=0x6000|(0<<6)|(rn<<3)|rd;
+                    mark[curradd]=0x8000;
+                    curradd++;
+                }
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+
+
+
+
+
+
+
+
+
+
 // -----------------------------------------------------------
         printf("<%u> Error: syntax error\n",line);
         return(1);
@@ -1002,6 +1547,221 @@ void dissassemble ( unsigned short inst )
         printf("}");
         return;
     }
+    if((inst&0xF800)==0x6800)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=2;
+        if(rx==0) printf("ldr r%u,[r%u]",rd,rm);
+        else      printf("ldr r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5800)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        printf("ldr r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x4800)
+    {
+        rx=inst&0xFF; rx<<=2;
+        rd=(inst>>8)&7;
+        if(rx==0) printf("ldr r%u,[pc]",rd);
+        else      printf("ldr r%u,[pc,#0x%03X] ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xF800)==0x9800)
+    {
+        rx=inst&0xFF; rx<<=2;
+        rd=(inst>>8)&7;
+        if(rx==0) printf("ldr r%u,[sp]",rd);
+        else      printf("ldr r%u,[sp,#0x%03X] ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xF800)==0x7800)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=0;
+        if(rx==0) printf("ldrb r%u,[r%u]",rd,rm);
+        else      printf("ldrb r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5C00)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        printf("ldrb r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x8800)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; rx<<=1;
+        if(rx==0) printf("ldrh r%u,[r%u]",rd,rm);
+        else      printf("ldrh r%u,[r%u,#0x%02X] ; %u",rd,rm,rx,rx);
+        return;
+    }
+    if((inst&0xFE00)==0x5A00)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        printf("ldrh r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xFE00)==0x5600)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        printf("ldrsb r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xFE00)==0x5E00)
+    {
+        rd=inst&7;
+        rn=(inst>>3)&7;
+        rm=(inst>>6)&7;
+        printf("ldrsh r%u,[r%u,r%u]",rd,rn,rm);
+        return;
+    }
+    if((inst&0xF800)==0x0000)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; if(rx==0) rx=32;
+        printf("lsl r%u,r%u,#%u",rd,rm,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x4080)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        printf("lsl r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xF800)==0x0800)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        rx=(inst>>6)&0x1F; if(rx==0) rx=32;
+        printf("lsr r%u,r%u,#%u",rd,rm,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x40C0)
+    {
+        rd=inst&7;
+        rm=(inst>>3)&7;
+        printf("lsr r%u,r%u",rd,rm);
+        return;
+    }
+    if((inst&0xF800)==0x2000)
+    {
+        rx=inst&0xFF;
+        rd=(inst>>8)&7;
+        printf("mov r%u,#0x%02X ; %u",rd,rx,rx);
+        return;
+    }
+    if((inst&0xFFC0)==0x4340)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        printf("mul r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFFC0)==0x43C0)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        printf("mvn r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFFC0)==0x4240)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        printf("neg r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFFC0)==0x4300)
+    {
+        rn=inst&7;
+        rm=(inst>>3)&7;
+        printf("orr r%u,r%u",rn,rm);
+        return;
+    }
+    if((inst&0xFE00)==0xBC00)
+    {
+        rm=inst&0xFF;
+        rn=inst&0x100;
+        printf("pop {");
+        for(rx=0;rx<7;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf("r%u",rx);
+                break;
+            }
+        }
+        for(rx++;rx<7;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf(",r%u",rx);
+                break;
+            }
+        }
+        if(rn)
+        {
+            if(rm==0) printf("pc");
+            else      printf(",pc");
+        }
+        printf("}");
+        return;
+    }
+    if((inst&0xFE00)==0xB400)
+    {
+        rm=inst&0xFF;
+        rn=inst&0x100;
+        printf("push {");
+        for(rx=0;rx<7;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf("r%u",rx);
+                break;
+            }
+        }
+        for(rx++;rx<7;rx++)
+        {
+            if(rm&(1<<rx))
+            {
+                printf(",r%u",rx);
+                break;
+            }
+        }
+        if(rn)
+        {
+            if(rm==0) printf("lr");
+            else      printf(",lr");
+        }
+        printf("}");
+        return;
+    }
+
+
+
+
+
+
+
+
+
 
 
     printf("UNKNOWN");
