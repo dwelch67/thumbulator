@@ -56,3 +56,17 @@ PUT32:
 GET32:
     ldr r0,[r0]
     bx lr
+
+.thumb_func
+.globl GETSP
+GETSP:
+    mov r0,sp
+    bx lr
+
+.thumb_func
+.global infinite
+infinite:
+    ldr r0,=0xF0000000
+    str r0,[r0]
+    b .
+

@@ -1,6 +1,7 @@
 
 void PUT32 ( unsigned int , unsigned int  );
 unsigned int GET32 ( unsigned int );
+void infinite ( void );
 
 #define THUL_UART_BASE 0xE0000000
 
@@ -12,6 +13,7 @@ void uart_putc ( unsigned int x )
 //-------------------------------------------------------------------
 unsigned int uart_getc ( void )
 {
+    //infinite();
     while(1) continue;
     return(0x20);
 }
