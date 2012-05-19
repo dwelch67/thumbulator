@@ -133,6 +133,7 @@ unsigned int parse_immed ( unsigned int ra )
         rb=0;
         for(;newline[ra];ra++)
         {
+            if(newline[ra]==',') break;
             if(newline[ra]==']') break;
             if(newline[ra]==0x20) break;
             if(!hexchar[newline[ra]])
@@ -155,6 +156,7 @@ unsigned int parse_immed ( unsigned int ra )
         rb=0;
         for(;newline[ra];ra++)
         {
+            if(newline[ra]==',') break;
             if(newline[ra]==']') break;
             if(newline[ra]==0x20) break;
             if(!numchar[newline[ra]])
@@ -401,17 +403,52 @@ int assemble ( void )
             for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
             if(newline[ra]==0) continue;
         }
-//// .word -----------------------------------------------------------
-        //if(strncmp(&newline[ra],".word ",6)==0)
-        //{
-            //ra+=6;
-            //ra=parse_immed(ra); if(ra==0) return(1);
-            //mem[curradd]=rx;
-            //mark[curradd]|=0x8000;
-            //curradd++;
-            //if(rest_of_line(ra)) return(1);
-            //continue;
-        //}
+// .word -----------------------------------------------------------
+        if(strncmp(&newline[ra],".word ",6)==0)
+        {
+            ra+=6;
+            if(curradd&1)
+            {
+                mem[curradd]=0x0000;
+                mark[curradd]|=0x9000;
+                curradd++;
+            }
+            while(1)
+            {
+                ra=parse_immed(ra); if(ra==0) return(1);
+                mem[curradd]=rx&0xFFFF;
+                mark[curradd]|=0x9000;
+                curradd++;
+                mem[curradd]=(rx>>16)&0xFFFF;
+                mark[curradd]|=0x9000;
+                curradd++;
+                if(newline[ra]!=',') break;
+                ra=parse_comma(ra); if(ra==0) return(1);
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
+// .hword -----------------------------------------------------------
+        if(strncmp(&newline[ra],".hword ",7)==0)
+        {
+            ra+=7;
+            while(1)
+            {
+                ra=parse_immed(ra); if(ra==0) return(1);
+                if((rx&0xFFFF)!=rx)
+                {
+                    printf("<%u> Error: Invalid immediate\n",line);
+                    return(1);
+                }
+                mem[curradd]=rx;
+                mark[curradd]|=0x9000;
+                curradd++;
+                if(newline[ra]!=',') break;
+                ra=parse_comma(ra); if(ra==0) return(1);
+            }
+            if(rest_of_line(ra)) return(1);
+            continue;
+        }
 // adc -----------------------------------------------------------
         if(strncmp(&newline[ra],"adc ",4)==0)
         {
@@ -2542,7 +2579,14 @@ int main ( int argc, char *argv[] )
         if(mark[ra]&0x8000)
         {
             printf("0x%08X: 0x%04X ",curradd,mem[ra]);
-            dissassemble(stdout,curradd,mem[ra]);
+            if(mark[ra]&0x1000)
+            {
+                fprintf(stdout,"data");
+            }
+            else
+            {
+                dissassemble(stdout,curradd,mem[ra]);
+            }
             printf("\n");
 
             //rb=0x04;
@@ -2574,7 +2618,14 @@ int main ( int argc, char *argv[] )
         if(mark[ra]&0x8000)
         {
             //fprintf(fpout,"0x%08X: 0x%04X ",curradd,mem[ra]);
-            dissassemble(fpout,curradd,mem[ra]);
+            if(mark[ra]&0x1000)
+            {
+                fprintf(fpout,"data");
+            }
+            else
+            {
+                dissassemble(fpout,curradd,mem[ra]);
+            }
             fprintf(fpout,"\n");
         }
     }
@@ -2593,7 +2644,14 @@ int main ( int argc, char *argv[] )
         if(mark[ra]&0x8000)
         {
             fprintf(fpout,"0x%08X: 0x%04X ",curradd,mem[ra]);
-            dissassemble(fpout,curradd,mem[ra]);
+            if(mark[ra]&0x1000)
+            {
+                fprintf(fpout,"data");
+            }
+            else
+            {
+                dissassemble(fpout,curradd,mem[ra]);
+            }
             fprintf(fpout,"\n");
         }
     }
