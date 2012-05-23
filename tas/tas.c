@@ -403,15 +403,28 @@ int assemble ( void )
             for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
             if(newline[ra]==0) continue;
         }
+// .align -----------------------------------------------------------
+        if(strncmp(&newline[ra],".align",6)==0)
+        {
+            ra+=6;
+            if(rest_of_line(ra)) return(1);
+            if(curradd&1)
+            {
+                printf("<%u> Adding halfword to align on a word boundary\n",line);
+                mem[curradd]=0x0000;
+                mark[curradd]|=0x9000;
+                curradd++;
+            }
+            continue;
+        }
 // .word -----------------------------------------------------------
         if(strncmp(&newline[ra],".word ",6)==0)
         {
             ra+=6;
             if(curradd&1)
             {
-                mem[curradd]=0x0000;
-                mark[curradd]|=0x9000;
-                curradd++;
+                printf("<%u> Error: not word aligned\n",line,lab_struct[lab].name,lab_struct[lab].line);
+                return(1);
             }
             while(1)
             {
@@ -982,86 +995,101 @@ int assemble ( void )
             ra=parse_low_reg(ra); if(ra==0) return(1);
             rd=rx;
             ra=parse_comma(ra); if(ra==0) return(1);
-            ra=parse_character(ra,'['); if(ra==0) return(1);
-            ra=parse_reg(ra); if(ra==0) return(1);
-            rn=rx;
-            if(rx>7)
+            if(newline[ra]=='[')
             {
-                if(rn==15)
+                ra=parse_character(ra,'['); if(ra==0) return(1);
+                ra=parse_reg(ra); if(ra==0) return(1);
+                rn=rx;
+                if(rx>7)
                 {
-                }
-                else
-                if(rn==13)
-                {
-                }
-                else
-                {
-                    printf("<%u> Error: Invalid base register\n",line);
-                    return(1);
-                }
-                if(newline[ra]==']')
-                {
-                    rx=0;
-                }
-                else
-                {
-                    ra=parse_comma(ra); if(ra==0) return(1);
-                    ra=parse_character(ra,'#'); if(ra==0) return(1);
-                    ra=parse_immed(ra); if(ra==0) return(1);
-                    if((rx&0x3FC)!=rx)
+                    if(rn==15)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                    }
+                    else
+                    if(rn==13)
+                    {
+                    }
+                    else
+                    {
+                        printf("<%u> Error: Invalid base register\n",line);
                         return(1);
                     }
-                }
-                ra=parse_character(ra,']'); if(ra==0) return(1);
-                //ldr rd,[pc,#immed_8*4]
-                //ldr rd,[sp,#immed_8*4]
-                mem[curradd]=0x0000|(rd<<8)|(rx>>2);
-                if(rn==15) mem[curradd]|=0x4800;
-                if(rn==13) mem[curradd]|=0x9800;
-                mark[curradd]=0x8000;
-                curradd++;
-            }
-            else
-            {
-                if(newline[ra]==',')
-                {
-                    ra=parse_comma(ra); if(ra==0) return(1);
-                    if(newline[ra]=='#')
+                    if(newline[ra]==']')
                     {
-                        //ldr rd,[rn,#immed_5*4]
+                        rx=0;
+                    }
+                    else
+                    {
+                        ra=parse_comma(ra); if(ra==0) return(1);
                         ra=parse_character(ra,'#'); if(ra==0) return(1);
                         ra=parse_immed(ra); if(ra==0) return(1);
-                        if((rx&0x7C)!=rx)
+                        if((rx&0x3FC)!=rx)
                         {
                             printf("<%u> Error: Invalid immediate\n",line);
                             return(1);
                         }
-                        ra=parse_character(ra,']'); if(ra==0) return(1);
-                        mem[curradd]=0x6800|((rx>>2)<<6)|(rn<<3)|rd;
-                        mark[curradd]=0x8000;
-                        curradd++;
                     }
-                    else
-                    {
-                        //ldr rd,[rn,rm]
-                        ra=parse_low_reg(ra); if(ra==0) return(1);
-                        rm=rx;
-                        ra=parse_character(ra,']'); if(ra==0) return(1);
-                        mem[curradd]=0x5800|(rm<<6)|(rn<<3)|rd;
-                        mark[curradd]=0x8000;
-                        curradd++;
-                    }
-                }
-                else
-                {
-                    //ldr rd,[rn] immed_5 = 0
                     ra=parse_character(ra,']'); if(ra==0) return(1);
-                    mem[curradd]=0x6800|(0<<6)|(rn<<3)|rd;
+                    //ldr rd,[pc,#immed_8*4]
+                    //ldr rd,[sp,#immed_8*4]
+                    mem[curradd]=0x0000|(rd<<8)|(rx>>2);
+                    if(rn==15) mem[curradd]|=0x4800;
+                    if(rn==13) mem[curradd]|=0x9800;
                     mark[curradd]=0x8000;
                     curradd++;
                 }
+                else
+                {
+                    if(newline[ra]==',')
+                    {
+                        ra=parse_comma(ra); if(ra==0) return(1);
+                        if(newline[ra]=='#')
+                        {
+                            //ldr rd,[rn,#immed_5*4]
+                            ra=parse_character(ra,'#'); if(ra==0) return(1);
+                            ra=parse_immed(ra); if(ra==0) return(1);
+                            if((rx&0x7C)!=rx)
+                            {
+                                printf("<%u> Error: Invalid immediate\n",line);
+                                return(1);
+                            }
+                            ra=parse_character(ra,']'); if(ra==0) return(1);
+                            mem[curradd]=0x6800|((rx>>2)<<6)|(rn<<3)|rd;
+                            mark[curradd]=0x8000;
+                            curradd++;
+                        }
+                        else
+                        {
+                            //ldr rd,[rn,rm]
+                            ra=parse_low_reg(ra); if(ra==0) return(1);
+                            rm=rx;
+                            ra=parse_character(ra,']'); if(ra==0) return(1);
+                            mem[curradd]=0x5800|(rm<<6)|(rn<<3)|rd;
+                            mark[curradd]=0x8000;
+                            curradd++;
+                        }
+                    }
+                    else
+                    {
+                        //ldr rd,[rn] immed_5 = 0
+                        ra=parse_character(ra,']'); if(ra==0) return(1);
+                        mem[curradd]=0x6800|(0<<6)|(rn<<3)|rd;
+                        mark[curradd]=0x8000;
+                        curradd++;
+                    }
+                }
+            }
+            else
+            {
+                ra=parse_branch_label(ra); if(ra==0) return(1);
+                if(is_const)
+                {
+                    printf("<%u> Error: not a label",line);
+                    return(1);
+                }
+                mem[curradd]=0x4800|(rd<<8)|0;
+                mark[curradd]=0x8000;
+                curradd++;
             }
             if(rest_of_line(ra)) return(1);
             continue;
@@ -1847,9 +1875,110 @@ int assemble ( void )
         return(1);
     }
 
-    //mem[curradd]=0x46c0;
-    //mark[curradd]=0x8000;
-    //curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1111; mark[curradd]=0x8000; curradd++;
+
+
+    //mem[curradd]=0xb5f0; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4657; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x464e; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4645; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0xb4e0; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x688b; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x680e; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x684d; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x68cf; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x491a; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x6804; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x6842; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x469c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x46b1; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x46a8; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x2300; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x468a; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4e17; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x0115; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x199e; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x18b1; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x444d; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x404d; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x0951; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4441; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x404d; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1965; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x012c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x0969; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4464; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x19c9; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x19ae; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4061; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4071; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4c0f; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x1851; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x191b; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x010c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x185a; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x444c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x094e; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4054; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4446; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4074; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x192c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x0126; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x0962; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4466; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x19d2; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4072; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x18e5; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x406a; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x188a; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4553; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0xd1d9; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x6004; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x6042; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0xbc1c; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4690; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x4699; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x46a2; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0xbdf0; mark[curradd]=0x8000; curradd++;
+    //mem[curradd]=0x3720; mark[curradd]=0x9000; curradd++;
+    //mem[curradd]=0xc6ef; mark[curradd]=0x9000; curradd++;
+    //mem[curradd]=0x79b9; mark[curradd]=0x9000; curradd++;
+    //mem[curradd]=0x9e37; mark[curradd]=0x9000; curradd++;
+    //mem[curradd]=0xf372; mark[curradd]=0x9000; curradd++;
+    //mem[curradd]=0x3c6e; mark[curradd]=0x9000; curradd++;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     return(0);
 }
@@ -2104,8 +2233,10 @@ void dissassemble ( FILE *fp, unsigned int addr, unsigned short inst )
     {
         rx=inst&0xFF; rx<<=2;
         rd=(inst>>8)&7;
-        if(rx==0) fprintf(fp,"ldr r%u,[pc]",rd);
-        else      fprintf(fp,"ldr r%u,[pc,#0x%03X] ; %u",rd,rx,rx);
+        if(rx&0x200) rm=0xFFFFFFFF<<10; else rm=0;
+        rm=addr+4+rx;
+        if(rx==0) fprintf(fp,"ldr r%u,[pc] ; [0x%04X]",rd,rm);
+        else      fprintf(fp,"ldr r%u,[pc,#0x%03X] ; %u [0x%04X]",rd,rx,rx,rm);
         return;
     }
     if((inst&0xF800)==0x9800)
@@ -2491,6 +2622,30 @@ int main ( int argc, char *argv[] )
                     rx=lab_struct[rb].addr;
                     inst=mem[lab_struct[ra].addr];
                     line=lab_struct[ra].line;
+                    if((inst&0xF800)==0x4800)
+                    {
+                        //ldr rd,[pc,#immed_8]
+                        if(lab_struct[ra].addr&1)
+                        {
+                            rd=rx-((lab_struct[ra].addr<<1)+2);
+                        }
+                        else
+                        {
+                            rd=rx-((lab_struct[ra].addr<<1)+4);
+                        }
+                        rm=0xFFFFFFFF;
+                        rm<<=8; //I think this is wrong by two or four
+                        if(rd&rm)
+                        {
+                            if((rd&rm)!=rm)
+                            {
+                                printf("<%u> Error: Load destination too far\n",line);
+                                return(1);
+                            }
+                        }
+                        inst|=(rd>>2)&0x7FF;
+                        lab_struct[ra].type++;
+                    }
                     if((inst&0xF000)==0xD000)
                     {
                         //bcond signed_immed_8
@@ -2655,6 +2810,21 @@ int main ( int argc, char *argv[] )
             fprintf(fpout,"\n");
         }
     }
+    fclose(fpout);
+
+    rb=0;
+    for(ra=0;ra<=ADDMASK;ra++)
+    {
+        if(mark[ra]&0x8000) rb=ra;
+    }
+    sprintf(newline,"%s.bin",argv[1]);
+    fpout=fopen(newline,"wb");
+    if(fpout==NULL)
+    {
+        printf("Error creating file [%s]\n",newline);
+        return(1);
+    }
+    fwrite(mem,2,rb+1,fpout);
     fclose(fpout);
 
     return(0);
