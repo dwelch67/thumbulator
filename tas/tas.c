@@ -426,17 +426,37 @@ int assemble ( void )
                 printf("<%u> Error: not word aligned\n",line,lab_struct[lab].name,lab_struct[lab].line);
                 return(1);
             }
-            while(1)
+            for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
+            if(newline[ra]=='=')
             {
-                ra=parse_immed(ra); if(ra==0) return(1);
-                mem[curradd]=rx&0xFFFF;
+                ra=parse_character(ra,'='); if(ra==0) return(1);
+                ra=parse_branch_label(ra); if(ra==0) return(1);
+                if((is_const)||(!is_label))
+                {
+                    printf("<%u> Error: expecting a label\n",line);
+                    return(1);
+                }
+                mem[curradd]=0x0000;
                 mark[curradd]|=0x9000;
                 curradd++;
-                mem[curradd]=(rx>>16)&0xFFFF;
+                mem[curradd]=0x0000;
                 mark[curradd]|=0x9000;
                 curradd++;
-                if(newline[ra]!=',') break;
-                ra=parse_comma(ra); if(ra==0) return(1);
+            }
+            else
+            {
+                while(1)
+                {
+                    ra=parse_immed(ra); if(ra==0) return(1);
+                    mem[curradd]=rx&0xFFFF;
+                    mark[curradd]|=0x9000;
+                    curradd++;
+                    mem[curradd]=(rx>>16)&0xFFFF;
+                    mark[curradd]|=0x9000;
+                    curradd++;
+                    if(newline[ra]!=',') break;
+                    ra=parse_comma(ra); if(ra==0) return(1);
+                }
             }
             if(rest_of_line(ra)) return(1);
             continue;
@@ -739,7 +759,7 @@ int assemble ( void )
             if(rest_of_line(ra)) return(1);
             if(is_label)
             {
-                mem[curradd]=0xE000;
+                mem[curradd]=0xD000|(rn<<8);
                 mark[curradd]=0x8002;
                 curradd++;
                 continue;
@@ -2622,6 +2642,21 @@ int main ( int argc, char *argv[] )
                     rx=lab_struct[rb].addr;
                     inst=mem[lab_struct[ra].addr];
                     line=lab_struct[ra].line;
+                    if((inst&0xF800)==0x0000)
+                    {
+                        //no this really isnt an lsl, using this to
+                        //mark an address
+                        inst2=mem[lab_struct[ra].addr+1];
+                        if((inst2&0xF800)!=0x0000)
+                        {
+                            printf("<%u> Error: expecting a .word\n",line);
+                            return(1);
+                        }
+                        inst=rx&0xFFFF;
+                        inst2=(rx>>16)&0xFFFF;
+                        mem[lab_struct[ra].addr+1]=inst2;
+                        lab_struct[ra].type++;
+                    }
                     if((inst&0xF800)==0x4800)
                     {
                         //ldr rd,[pc,#immed_8]
