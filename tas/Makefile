@@ -7,4 +7,7 @@ clean :
 	rm -f *.bin
 	rm -f *.hex
 	rm -f *.vcd
+	rm -f *.s.s
+	rm -f *.s.diss
+
 
