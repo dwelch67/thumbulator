@@ -4,6 +4,7 @@ thumbulator : thumbulator.c
 
 clean :
 	rm -f thumbulator
+	rm -f output.vcd
 
 
 

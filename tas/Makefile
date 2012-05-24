@@ -9,5 +9,6 @@ clean :
 	rm -f *.vcd
 	rm -f *.s.s
 	rm -f *.s.diss
+	rm -f output.vcd
 
 
