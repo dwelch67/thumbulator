@@ -1,0 +1,161 @@
+
+This is a work in progress, very rough at the moment, expect errors
+and mispellings and rewrites.
+
+
+Before we start.  This is not going to cover elementary basics like
+twos complement and the carry and overflow flags.  You should if not
+try at least read through the learn asm tutorial that is part of
+my lsasim project http://github.com/dwelch67/lsasim.  And as mentioned
+there you should have some level of general programming experience,
+in particular some C experience as some examples may be compared to
+or derived from C code.  For general programing experience try
+http://learnpythonthehardway.org and then perhaps
+http://c.learncodethehardway.org.  Please do not judge these books by
+their title,  it is not a bad method at all for teaching.
+
+
+A little bit about ARM and why thumb might be interesting or important.
+ARM is an acronym that has changed its definition over time.  Acorn
+RISC Machine and Advanced RISC Machine being two.  The family of
+processors were derived from a 32 bit machine.  The instructions were
+fixed at 32 bits.  The popular ARM7TDMI processor core included a 16
+bit subset to the ARM instruction set.  Affectionately named the
+thumb instruction set.  What I will call "all thumb variant" or
+"ARM7TDMI" or "ARMv4T" thumb instructions are basically the original
+16 bit instructions supported in the ARMV7TDMI (ARMv4T architecture).
+
+These instructions can all be mapped directly to 32 bit ARM instructions.
+I can imagine how this must have worked inside the processor, in thumb
+mode the processor basically converts these instructions during the
+decode and feeds the converted 32 bit ARM instructions to the ARM
+processor.  It does not go the other way there is not a thumb instruction
+to go with every ARM instruction.  The more modern Cortex-M series of
+processors do not at all support the 32 bit, non-thumb ARM7 like
+instructions, they are thumb only machines, my guess is they are not
+ARM 32 bit cores with a thumb to ARM translator but instead designed
+from the ground up to be thumb machines.
+
+You will see the term thumb-2 thrown about with respect to ARM
+processors.  Just like the ARM instruction set itself (lets say from the
+ARM7 (ARMv4) to the present) each processor or generation of processors
+has added some instructions to the ARM7 instruction set, with maybe only
+one or a few exceptions the original ARM7 instruction set is universal
+to all ARM processors to date (that support the 32 bit ARM instruction
+set).  Thumb-2 instructions are an extension to the thumb instruction
+set.  Processors that support thumb-2 support the original thumb
+instruction set.  Thumb-2 instructions capitalize on what would be
+undefined/illegal instructions in the original thumb instruction set,
+in particular adding a second instruction word, making them a total of
+32 bits.  But not to be confused with the 32 bit ARM instruction set.  I
+consider thumb2 to be a bit of a kludge.  I like the pure fixed
+instruction length nature of the classic 32 bit ARM instructions and
+these 16 bit thumb instructions.  Thumb-2 is supposed to combine the
+code density of thumb with performance of ARM.  Not to say that the
+all thumb variant thumb instructions were slow.  The same source
+code would require more thumb instructions than the same code compiled
+for ARM.  So the thumb version is not exactly half of the ARM version
+from the same code, just a little more than half, 5%, 10%, etc depending
+on your application of course.  If you are running on a system with
+zero wait state 32 bit wide memory, because the ARM code uses fewer
+instructions it will execute faster than thumb.  But take a system
+like the game boy advance from Nintendo.  Most of the busses and the
+rom are 16 bits wide and slow.  An ARM instruction takes two bus
+memory cycles compared to a thumb.  In general compiling for thumb
+for a Game Boy Advance would produce faster to much faster code than
+compiling the same source using ARM instructions.  So you cant make
+a general statement like thumb is slower than ARM or faster than
+ARM.
+
+What started out as something that was trying to give better code
+density (uses less program memory to perform the same task as an ARM
+based program) has now, in my opinion, become the portable ARM
+instruction set as almost all ARM cores will run the "all thumb variant"
+thumb instructions.  This feature more than any other, combined with
+ARM processors being the most popular processor (in terms of processors
+sold) makes the thumb instruction set (all thumb variant) something
+worth learning.
+
+Assume from this point on, all thumb references are assumed to mean
+the "all thumb variant" instructions.  Where does this "all thumb
+variant" term come from?  Any time you develop software for an ARM
+processor it is strongly suggested you download at least two specific
+documents.  For both start at http://infocenter.arm.com, the first
+is the ARM ARM (ARM Architectural Reference Manual).  Because of the
+number of ARM processor architectures now the ARM ARM is multiple
+manuals, one for each processor architecture or subset of architecture.
+The ARMv5 ARM ARM, is what used to be the unifed ARM ARM.  Along the
+left side of the web page find the ARM Architecture section then
+the Reference Manuals link.  And for this tutoral the ARMv5 ARM ARM,
+in general get the ARM ARM specified by the chip vendor for the product
+you are using.  The second document is the TRM (Technical Reference
+Manual).  Each ARM core is part of some architecture family and that
+ties to the family generic ARM ARM.  The specific details for a core
+are in the TRM.  Exactly which new instructions are or are not
+supported, exactly what timers or other features are suppored, etc.
+For this tutorial you only need the ARMv5 ARM ARM it includes the
+thumb instruciton set specification plus a lot about the general
+architecture of the ARM processor which can be understood from an
+ARM perspective or thumb perspective.
+
+Bear with me we will start programming very soon.
+
+So what do you have to give up when going from 32 bit ARM instructions
+to 16 bit thumb instructions?  Well, to keep it simple, first off every
+ARM instruction could conditionally execute.  Many processors let you
+branch on greater than, with the ARM instructions you could subtract
+if greater than, load this register from memory if greater than, etc.
+The thunb instruction set, got rid of those bits and only the conditional
+branches are conditional.  As part of that ARM feature the ALU instructions
+that in most other processors would always modify the processor status
+bits, the relevant ARM instructions had a bit in the instruction to
+allow or not allow those bits to be changed.  You could perform a
+subtract, allowing the processor status bits to be changed, and then
+if the zero flag was set then perform an add that did not touch the
+flags (did not touch/change the zero flag for example) then perform
+a number of other instructions on the condition that the zero
+flag was set.  If every alu operation modified the z flag you couldnt
+really use this cool ARM instruction set feature of conditions on
+every instruction.  Well, as you can guess, thumb is more traditional,
+you dont get that extra bit, you cant disable the modification of
+flags for instructions like alu instructions that normally modify the
+flags.  Another big chunk of bits they squeezed out is mostly limiting
+instructions to two operand registers instead of one.  For example
+the ARM XOR instruction can essentially perform a = b ^ c (this is NOT
+the actual ARM syntax) using three different registers, two operands/inputs
+and one result.  With thumb a few instructions support three registers
+but most only two, so you can only perform a = a ^ b.  To perform the
+three register XOR equivalent you would have to do something like these
+two instructions a = b (mov) and a = a ^ c (not the actual thumb
+syntax).  Not the last difference, but the last one to mention at this
+time is most of the thumb instructions only operate on registers r0-r7.
+Basically the last two things mentioned reduced 12 bits (4+4+4) of
+instruction required to specify three registers down to 6 bits (3+3) of
+instruction required to specify two registers.
+
+Reminder read through the lsasim project tutorial first, then come back
+here.
+
+This is a work in progress...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
