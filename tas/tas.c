@@ -423,7 +423,7 @@ int assemble ( void )
             ra+=6;
             if(curradd&1)
             {
-                printf("<%u> Error: not word aligned\n",line,lab_struct[lab].name,lab_struct[lab].line);
+                printf("<%u> Error: not word aligned\n",line);
                 return(1);
             }
             for(;newline[ra];ra++) if(newline[ra]!=0x20) break;

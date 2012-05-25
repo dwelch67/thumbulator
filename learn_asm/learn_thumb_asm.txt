@@ -2,18 +2,16 @@
 This is a work in progress, very rough at the moment, expect errors
 and mispellings and rewrites.
 
-
-Before we start.  This is not going to cover elementary basics like
-twos complement and the carry and overflow flags.  You should if not
-try at least read through the learn asm tutorial that is part of
-my lsasim project http://github.com/dwelch67/lsasim.  And as mentioned
+Before we start.  This is not going to cover in any great detail
+elementary basics like twos complement and the carry and overflow
+flags.  You should if not try at least read through the learn asm
+tutorial that is part of my lsasim project http://github.com/dwelch67/lsasim.  And as mentioned
 there you should have some level of general programming experience,
 in particular some C experience as some examples may be compared to
 or derived from C code.  For general programing experience try
 http://learnpythonthehardway.org and then perhaps
 http://c.learncodethehardway.org.  Please do not judge these books by
 their title,  it is not a bad method at all for teaching.
-
 
 A little bit about ARM and why thumb might be interesting or important.
 ARM is an acronym that has changed its definition over time.  Acorn
@@ -24,6 +22,292 @@ bit subset to the ARM instruction set.  Affectionately named the
 thumb instruction set.  What I will call "all thumb variant" or
 "ARM7TDMI" or "ARMv4T" thumb instructions are basically the original
 16 bit instructions supported in the ARMV7TDMI (ARMv4T architecture).
+
+You are going to want/need a manual from ARM.  Start at
+http://infocenter.arm.com along the left side expand ARM Architecture
+then expand Reference Manuals.  Then expand the ARMv5 Architectur
+Reference Manual.  On the right/middle of the page click on the PDF
+version link.  You will need to create an ARM account if you dont have
+one.  No cost other than a name and email address.  The thumb simulator
+and assembler support most of the instructions in the thumb chapter
+of this document.
+
+With respect to the learn code the hard way series the idea here will
+be to present you with example programs.  It is in your best interest
+to type that code in your editor yourself without cutting and pasting.
+You learn to actually write the programs this way and you learn to
+debug typos and other syntax issues this way which is as essential
+to learning a new language as learning the mnemonics and rules.  Each
+example will show the expected output from the thumbulator instruction
+set simulator, and a discussion about the program and what you should
+learn from it.
+
+Lets dig in:
+
+---------------------------------------------------------------------
+Lesson 0:  Building tools and first simulation
+
+This is the exception to the rule, this is to get you up and running.
+
+Thumbulator is a simple, hopefully portable, single file program that
+should compile most anywhere.  The makefile is made for a linux/unix
+environment with gnu tools.  Microsft Visual C, llvm/clang, etc should
+all be able to handle this file and create a binary.
+
+gcc thumbulator.c -o thumbulator
+clang thumbulator.c -o thumbulator
+cl thumbulator.c
+etc
+
+There are a couple of ways to "see" what thumbulator is doing, there are
+defines at the top of the source file DBUG, DISS, etc.  Making those
+non-zero and recompiling thumbulator it will dump out a lot more stuff
+while it runs.  The simulator takes a brute force approach, in no way
+is it designed for performance, it is designed to be accurate, readable
+and understandable.  An average programmer should not have any problem
+reading and understanding that code, in particular seeing what the
+debug defines do and adding their own where needed.   The second method
+for debugging is to create vcd (value change dump) files, which are used
+in the hardware design industry to see logic signals as it ran in a
+simulation.  Tacking --vcd onto the end of the thumbulator command line
+will create an output.vcd file which you can view with tools like gtkwave.
+Gtkwave you would have to go find or build and is not required for these
+lessons.   If you choose to though it may greatly help you debug your
+program.  Be careful though if you leave thumbulator running indefinitely
+with vcd output it can/will create a huge file.
+
+I have created and provided a thumb assembler so that you dont have
+to get your hands dirty finding or building a toolchain.  These lessons
+assume the tas thumb assembler that comes with thumbulator is used.
+Later gnu binutils differences may be discussed.
+
+In the tas directory, same story, the makefile is related to gnu tools
+on a linux/unix system.  tas is a single file, ideally portable program
+
+gcc tas.c -o tas
+clang tas.c -o tas
+etc
+
+For each lesson there will be some assembly language code between
+lines that look like this: ---- lesson01.s ---- The primary task (other
+than learning) is to re-type the lines of that program into a text
+file on a text editor.  Do not include the ---- lesson01.s ---- lines
+themselves.  It is time to perform this typing task for lesson 0:
+
+---- lesson00.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+.hword 0xDEAD
+hang:
+    b hang
+---- lesson00.s ----
+
+% tas lesson00.s
+
+tas output:
+label0000: [0x00000012] [hang] 0
+label0001: [0x00000009] [hang] 1
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0xDEAD data
+0x00000012: 0xE7FE b 0x00000012
+
+% thumbulator lesson.s.bin
+
+thumbulator output:
+invalid instruction 0x00000014 0xDEAD
+
+
+instructions 1
+fetches      1
+reads        0
+writes       0
+memcycles    1
+systick_ints 0
+
+
+For each lesson follow this model of using tas to assemble the program
+and thumbulator to run the binary created.  tas will tack on a .bin
+name to what you feed it, feed it bob.s you get bob.s.bin.
+
+The lessons will typically only show the relevant thumbulator output.
+
+So what is happening here?
+
+tas is a bit verbose about what it is doing, sorting out labels and
+then dumps a disassembly of what it assembled.  I tried to clean room
+the disassembly from the assembly so that I could catch my own mistakes
+but some will no doubt get through.  Please help make the tools better
+by reporting issues.
+
+Assemblers will have some sort of directive that you can use to place
+raw data into the binary.  This one uses .word which is the same/similar
+to the gnu assembler in binutils (gas).  In the ARM world a "word" is
+32 bits, a "half word" is 16 and a "byte" is 8 bits.  The computer you
+are likely reading/running this on is an x86 where a word is 16 bits
+and a double word is 32 bits.  To operate at this level you need to be
+able to adapt to the lingo and/or translate.  The .word directives
+here are used to place 32 bit values in the binary, what and why will
+be explained in a second.  The .hword is there to place a 16 bit value
+the top 8 bits of that value 0xDE imply an undefined instruction, this
+half word is placed in this program to be executed as an instruction
+and is there specifically to stop the simulator.  I didnt want the
+simulation to run forever.
+
+This is the first thing to learn here
+assembly is intimately related to machine code.  The bits and bytes
+that are interpreted by the processor to make it actually do stuff.
+Unlike high level programming languages where there are a lot of rules,
+a variable might have a definition of signed or unsigned or a pointer
+to something.  These are all an illusion created in reference to the
+syntax/rules of that language and dont have much of a basis in reality
+in the processor.  its just bits, the processor doesnt know or care
+for a very brief moment a set of bits might be considered an input
+or an output of an add operation, basically data.  That add operation
+may have been computing an address and the next instruction that uses
+the output bits from the add, a sum, data, now defines those bits as
+an address, a pointer into memory.  After the read or write of memory
+instruction has finished those bits are just bits again, no meaning.
+
+Assembly doesnt or at least shouldnt prevent you from just sticking bits
+in wherever you like.  Say for example you want to use the tas assembler
+but really really feel the need to insert an arm instruction or a
+thumb2 instruction whose assembly syntax is not supported by tas, you
+can just stick the instruction bytes right into the code using .word or
+.hword or .byte, nothing will stop you from doing that and nothing will
+stop you from trying to execute that on whatever processor you try to
+execute it on.  On thumulator it wont work but take the output of tas
+to another ARM processor and it might.
+
+The point of assembly language is that you are writing machine code
+for the processor in a human readable/writeable form.  You could just
+type in bits or bytes, but it is a lot harder to read and maintain
+
+0xE7FE
+
+than it is to read and maintain
+
+hang:
+    b hang
+
+
+Although the thumbulator project strives to be the older, more pure
+original thumb instruciton set, it uses the modern Cortex-M series
+exception table.  The Cortex-M series of ARM cores are basically thumb
+only cores.  With a traditional 32 bit ARM processor the exception
+table, the well known (to hardware and software) addresses that are used
+to boot the processor and handle interrupts, etc will contain 32 bit
+ARM instructions, the processor simply starts executing at that address.
+The Cortex-M method is a bit more traditional, it has a table of addresses
+these are addresses to the code that handles that event, reset, data
+abort, etc.  And being thumb only processors the code at that address
+is thumb code, you cant and wont have any full sized ARM instructions.
+To prevent having to support even some ARM instructions I chose to
+use the Cortex-M method, in such a way that you can take the binary and
+with limitations of course have a binary that runs on thumbulator also
+run on real Cortex-M hardware.
+
+The vector or exception table in a Cortex-M processor starts at address
+zero (0x00000000) as far as the processor itself is concerned.  The first
+32 bit location is used to pre-initialize the stack pointer.  This allows
+for example to have handlers, including reset, written in C or some
+other compiled language that conforms to the hardwares rules.  You are
+welcome of course to initialize the stack pointer the old fashioned way
+in asm in the reset handler.  this example uses
+
+.word 0x40080000
+
+As the initializer for the stack pointer.  This was determined knowing
+the virtual ram/memory space of the thumbulator simulated processor.
+
+The second word in the processors memory space for a Cortex-M is the
+address to the reset handler.  For this example the value 0x11 is
+placed in that location.  If this is not a strange value it should
+be.  First off this is a fixed 16 bit width instruction set, and the
+assembler dumps, etc do not use odd addresses.  The ARM processors that
+can switch modes between ARM and thumb use the lsbit of the address
+when using a specific instruction to indicate the mode being branched
+to.  When the lsbit is set it is thumb mode, clear, ARM mode.  to conform
+with that convention the hander is at address 0x10 and is thumb so the
+address 0x11 is used.
+
+Real Cortex-M processors have many vectors in the vector table, dozens
+to hundreds, really.  On real Cortex-M processors as well as thumbulator
+if you are not using those vectors you can use that address space
+for code.  Because 0x10 is an easy address, it is 16 bytes or 4 32bit
+words.  So there are two more .word's after the .word 0x11 as padding.
+
+With the second word indicating address 0x10 as the entry point for reset
+that means as written .hword 0xDEAD is the first instruction to execute.
+As mentioned above 0xDEAD is an undefined instruction that will cause
+the thumbulator processor to halt.  Which was intentional in this case.
+
+hang: is a label, really no different than when you use them in C (Who
+uses them in C?  almost nobody, but if you did).  b is the branch
+instruction, unconditional branch or jump or the same as a goto in C.
+So hang: b hang is the same as hang: goto hang; in C, an infinite loop.
+Here just in case the 0xDEAD doesnt work this infinite loop should keep
+the processor from running amuck (it cant hurt anything though it is
+virtual).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+A little arm history
+32 bit ARM vs 16 bit thumb
+thumb vs thumb2
+most portable arm instruction set
+differences between arm and thumb
+
+
+
+
 
 These instructions can all be mapped directly to 32 bit ARM instructions.
 I can imagine how this must have worked inside the processor, in thumb
