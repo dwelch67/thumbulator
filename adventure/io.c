@@ -522,7 +522,7 @@ pspeak(m, skip)         /* read, decrypt an print a ptext message              *
                  * no prop 2 &c */
 {
     char   *s, nonfirst;
-    char   *numst, save;
+    char   *numst; //, save;
     struct text *msg;
     char   *tbuf;
 
@@ -536,7 +536,7 @@ pspeak(m, skip)         /* read, decrypt an print a ptext message              *
     while (s - tbuf < msg->txtlen) {    /* read line at a time */
         for (numst = s; (*s ) != TAB; s++);   /* get number  */
 
-        save = *s;  /* Temporarily trash the string (cringe) */
+        //save = *s;  /* Temporarily trash the string (cringe) */
         *s++ = 0;   /* decrypting number within the string          */
 
         if (not_atoi(numst) != 100 * skip && skip >= 0) {
