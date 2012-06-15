@@ -7,9 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAXINCLUDES 10
+#define FNAMELEN 255
 
-FILE *fpin;
+FILE *fpin[MAXINCLUDES];
 FILE *fpout;
+unsigned char filename[FNAMELEN][MAXINCLUDES];
 
 unsigned int rd,rm,rn,rx;
 unsigned int bl_upper;
@@ -20,7 +23,8 @@ unsigned short mem[ADDMASK+1];
 unsigned short mark[ADDMASK+1];
 
 unsigned int curradd;
-unsigned int line;
+unsigned int line[MAXINCLUDES];
+unsigned int currlevel;
 
 char cstring[1024];
 char newline[1024];
@@ -35,6 +39,7 @@ struct
     unsigned int addr;
     unsigned int line;
     unsigned int type;
+    char fname[FNAMELEN];
 } lab_struct[MAX_LABS];
 unsigned int nlabs;
 unsigned int lab;
@@ -101,7 +106,7 @@ int rest_of_line ( unsigned int ra )
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
     if(newline[ra])
     {
-        printf("<%u> Error: garbage at end of line\n",line);
+        printf("<%s:%u> Error: garbage at end of line\n",filename[currlevel],line[currlevel]);
         return(1);
     }
     return(0);
@@ -138,7 +143,7 @@ unsigned int parse_immed ( unsigned int ra )
             if(newline[ra]==0x20) break;
             if(!hexchar[newline[ra]])
             {
-                printf("<%u> Error: invalid number\n",line);
+                printf("<%s:%u> Error: invalid number\n",filename[currlevel],line[currlevel]);
                 return(0);
             }
             cstring[rb++]=newline[ra];
@@ -146,7 +151,7 @@ unsigned int parse_immed ( unsigned int ra )
         cstring[rb]=0;
         if(rb==0)
         {
-            printf("<%u> Error: invalid number\n",line);
+            printf("<%s:%u> Error: invalid number\n",filename[currlevel],line[currlevel]);
             return(0);
         }
         rx=strtoul(cstring,NULL,16);
@@ -161,7 +166,7 @@ unsigned int parse_immed ( unsigned int ra )
             if(newline[ra]==0x20) break;
             if(!numchar[newline[ra]])
             {
-                printf("<%u> Error: invalid number\n",line);
+                printf("<%s:%u> Error: invalid number\n",filename[currlevel],line[currlevel]);
                 return(0);
             }
             cstring[rb++]=newline[ra];
@@ -169,7 +174,7 @@ unsigned int parse_immed ( unsigned int ra )
         cstring[rb]=0;
         if(rb==0)
         {
-            printf("<%u> Error: invalid number\n",line);
+            printf("<%s:%u> Error: invalid number\n",filename[currlevel],line[currlevel]);
             return(0);
         }
         rx=strtoul(cstring,NULL,10);
@@ -195,7 +200,7 @@ unsigned int parse_reg ( unsigned int ra )
     cstring[rb]=0;
     if(get_reg_number(cstring,&rx))
     {
-        printf("<%u> Error: not a register\n",line);
+        printf("<%s:%u> Error: not a register\n",filename[currlevel],line[currlevel]);
         return(0);
     }
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
@@ -220,12 +225,12 @@ unsigned int parse_low_reg ( unsigned int ra )
     cstring[rb]=0;
     if(get_reg_number(cstring,&rx))
     {
-        printf("<%u> Error: not a register\n",line);
+        printf("<%s:%u> Error: not a register\n",filename[currlevel],line[currlevel]);
         return(0);
     }
     if(rx>7)
     {
-        printf("<%u> Error: invalid (high) register\n",line);
+        printf("<%s:%u> Error: invalid (high) register\n",filename[currlevel],line[currlevel]);
         return(0);
     }
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
@@ -237,7 +242,7 @@ unsigned int parse_comma ( unsigned int ra )
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
     if(newline[ra]!=',')
     {
-        printf("<%u> Error: syntax error\n",line);
+        printf("<%s:%u> Error: syntax error\n",filename[currlevel],line[currlevel]);
         return(0);
     }
     ra++;
@@ -250,7 +255,7 @@ unsigned int parse_character ( unsigned int ra, unsigned char ch )
     for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
     if(newline[ra]!=ch)
     {
-        printf("<%u> Error: syntax error\n",line);
+        printf("<%s:%u> Error: syntax error\n",filename[currlevel],line[currlevel]);
         return(0);
     }
     ra++;
@@ -298,13 +303,13 @@ unsigned int parse_branch_label ( unsigned int ra )
         rc=rb-ra;
         if(rc==0)
         {
-            printf("<%u> Error: Invalid label\n",line);
+            printf("<%s:%u> Error: Invalid label\n",filename[currlevel],line[currlevel]);
             return(0);
         }
         rc--;
         if(rc>=LABLEN)
         {
-            printf("<%u> Error: Label too long\n",line);
+            printf("<%s:%u> Error: Label too long\n",filename[currlevel],line[currlevel]);
             return(0);
         }
         for(rb=0;rb<=rc;rb++)
@@ -313,7 +318,8 @@ unsigned int parse_branch_label ( unsigned int ra )
         }
         lab_struct[nlabs].name[rb]=0;
         lab_struct[nlabs].addr=curradd;
-        lab_struct[nlabs].line=line;
+        lab_struct[nlabs].line=line[currlevel];
+        strcpy(lab_struct[nlabs].fname,filename[currlevel]);
         lab_struct[nlabs].type=1;
         nlabs++;
         rx=0;
@@ -322,22 +328,26 @@ unsigned int parse_branch_label ( unsigned int ra )
     return(ra);
 }//-------------------------------------------------------------------
 //-------------------------------------------------------------------
-int assemble ( void )
+int assemble ( unsigned int level )
 {
     unsigned int ra;
     unsigned int rb;
     unsigned int rc;
+    int ret;
 
+printf("assemble(%u)\n",level);
 
-    curradd=0;
-    nlabs=0;
-    memset(mem,0x00,sizeof(mem));
-    memset(mark,0x00,sizeof(mark));
+    currlevel=level;
 
-    line=0;
-    while(fgets(newline,sizeof(newline)-1,fpin))
+    if(level>=MAXINCLUDES)
     {
-        line++;
+        printf("<%s:%u> Error: too many levels of include\n",filename[currlevel],line[currlevel]);
+        return(1);
+    }
+
+    while(fgets(newline,sizeof(newline)-1,fpin[level]))
+    {
+        line[level]++;
         //tabs to spaces and other things
         for(ra=0;newline[ra];ra++)
         {
@@ -370,13 +380,13 @@ int assemble ( void )
             rc=rb-ra;
             if(rc==0)
             {
-                printf("<%u> Error: Invalid label\n",line);
+                printf("<%s:%u> Error: Invalid label\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
             rc--;
             if(rc>=LABLEN)
             {
-                printf("<%u> Error: Label too long\n",line);
+                printf("<%s:%u> Error: Label too long\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
             for(rb=0;rb<=rc;rb++)
@@ -385,7 +395,8 @@ int assemble ( void )
             }
             lab_struct[nlabs].name[rb]=0;
             lab_struct[nlabs].addr=curradd<<1;
-            lab_struct[nlabs].line=line;
+            lab_struct[nlabs].line=line[currlevel];
+            strcpy(lab_struct[nlabs].fname,filename[currlevel]);
             lab_struct[nlabs].type=0;
             ra++;
             for(lab=0;lab<nlabs;lab++)
@@ -395,13 +406,50 @@ int assemble ( void )
             }
             if(lab<nlabs)
             {
-                printf("<%u> Error: label [%s] already defined on line %u\n",line,lab_struct[lab].name,lab_struct[lab].line);
+                printf("<%s:%u> Error: label [%s] already defined on line %u\n",filename[currlevel],line[currlevel],lab_struct[lab].name,lab_struct[lab].line);
                 return(1);
             }
             nlabs++;
             //skip spaces
             for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
             if(newline[ra]==0) continue;
+        }
+// .include -----------------------------------------------------------
+        if(strncmp(&newline[ra],".include ",9)==0)
+        {
+            if((level+1)>=MAXINCLUDES)
+            {
+                printf("<%s:%u> Error: too many levels of include\n",filename[currlevel],line[currlevel]);
+                return(1);
+            }
+            ra+=9;
+            for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
+            for(rd=0;newline[ra];ra++,rd++)
+            {
+                if(rd>=FNAMELEN)
+                {
+                    printf("<%s:%u> Error: filename too long\n",filename[currlevel],line[currlevel]);
+                    return(1);
+                }
+                filename[level+1][rd]=newline[ra];
+                if(newline[ra]==0x20) break;
+            }
+            filename[level+1][rd]=0;
+            if(rest_of_line(ra)) return(1);
+            fpin[level+1]=fopen(filename[level+1],"rt");
+            if(fpin[level+1]==NULL)
+            {
+                printf("<%s:%u> Error opening file [%s]\n",filename[currlevel],line[currlevel],filename[level+1]);
+                return(1);
+            }
+            line[level+1]=0;
+            ret=assemble(level+1);
+            fclose(fpin[level+1]);
+            if(ret)
+            {
+                return(1);
+            }
+            continue;
         }
 // .align -----------------------------------------------------------
         if(strncmp(&newline[ra],".align",6)==0)
@@ -410,7 +458,7 @@ int assemble ( void )
             if(rest_of_line(ra)) return(1);
             if(curradd&1)
             {
-                printf("<%u> Adding halfword to align on a word boundary\n",line);
+                printf("<%s:%u> Adding halfword to align on a word boundary\n",filename[currlevel],line[currlevel]);
                 mem[curradd]=0x0000;
                 mark[curradd]|=0x9000;
                 curradd++;
@@ -423,7 +471,7 @@ int assemble ( void )
             ra+=6;
             if(curradd&1)
             {
-                printf("<%u> Error: not word aligned\n",line);
+                printf("<%s:%u> Error: not word aligned\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
             for(;newline[ra];ra++) if(newline[ra]!=0x20) break;
@@ -433,7 +481,7 @@ int assemble ( void )
                 ra=parse_branch_label(ra); if(ra==0) return(1);
                 if((is_const)||(!is_label))
                 {
-                    printf("<%u> Error: expecting a label\n",line);
+                    printf("<%s:%u> Error: expecting a label\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 mem[curradd]=0x0000;
@@ -470,7 +518,7 @@ int assemble ( void )
                 ra=parse_immed(ra); if(ra==0) return(1);
                 if((rx&0xFFFF)!=rx)
                 {
-                    printf("<%u> Error: Invalid immediate\n",line);
+                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 mem[curradd]=rx;
@@ -517,7 +565,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0x1FC)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //add sp,#immed_7*4
@@ -544,7 +592,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0xFF)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //add rd,#immed_8
@@ -566,7 +614,7 @@ int assemble ( void )
                             ra=parse_comma(ra); if(ra==0) return(1);
                             if(newline[ra]!='#')
                             {
-                                printf("<%u> Error: Invalid immediate\n",line);
+                                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                             if(rm==15)
@@ -575,7 +623,7 @@ int assemble ( void )
                                 ra=parse_immed(ra); if(ra==0) return(1);
                                 if((rx&0x3FC)!=rx)
                                 {
-                                    printf("<%u> Error: Invalid immediate\n",line);
+                                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                     return(1);
                                 }
                                 //add rd,pc,#immed_8*4
@@ -590,7 +638,7 @@ int assemble ( void )
                                 ra=parse_immed(ra); if(ra==0) return(1);
                                 if((rx&0x3FC)!=rx)
                                 {
-                                    printf("<%u> Error: Invalid immediate\n",line);
+                                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                     return(1);
                                 }
                                 //add rd,pc,#immed_8*4
@@ -600,7 +648,7 @@ int assemble ( void )
                             }
                             else
                             {
-                                printf("<%u> Error: Invalid second register\n",line);
+                                printf("<%s:%u> Error: Invalid second register\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                         }
@@ -624,7 +672,7 @@ int assemble ( void )
                             ra=parse_immed(ra); if(ra==0) return(1);
                             if((rx&0x7)!=rx)
                             {
-                                printf("<%u> Error: Invalid immediate\n",line);
+                                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                             //add rd,rm,#immed_3
@@ -675,7 +723,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx<1)||(rx>32))
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     rx&=0x1F;
@@ -686,7 +734,7 @@ int assemble ( void )
                 }
                 else
                 {
-                    printf("<%u> Error: Invalid immediate\n",line);
+                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
             }
@@ -723,7 +771,7 @@ int assemble ( void )
                 {
                     if((rd&rm)!=rm)
                     {
-                        printf("<%u> Error: Branch destination too far\n",line);
+                        printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                 }
@@ -772,7 +820,7 @@ int assemble ( void )
                 {
                     if((rd&rm)!=rm)
                     {
-                        printf("<%u> Error: Branch destination too far\n",line);
+                        printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                 }
@@ -805,7 +853,7 @@ int assemble ( void )
             ra=parse_immed(ra); if(ra==0) return(1);
             if((rx&0xFF)!=rx)
             {
-                printf("<%u> Error: Invalid immediate\n",line);
+                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
             mem[curradd]=0xBE00|rx;
@@ -840,7 +888,7 @@ int assemble ( void )
                 {
                     if((rd&rm)!=rm)
                     {
-                        printf("<%u> Error: Branch destination too far\n",line);
+                        printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                 }
@@ -899,7 +947,7 @@ int assemble ( void )
                 {
                     if(rm==15)
                     {
-                        printf("<%u> Error: Not wise to use r15 in this way\n",line);
+                        printf("<%s:%u> Error: Not wise to use r15 in this way\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //cmp rn,rm one or the other high
@@ -923,7 +971,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0xFF)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //cmp rn,#immed_8
@@ -939,7 +987,7 @@ int assemble ( void )
                     {
                         if(rm==15)
                         {
-                            printf("<%u> Error: Not wise to use r15 in this way\n",line);
+                            printf("<%s:%u> Error: Not wise to use r15 in this way\n",filename[currlevel],line[currlevel]);
                             return(1);
                         }
                         //cmp rn,rm one or the other high
@@ -988,7 +1036,7 @@ int assemble ( void )
                 ra=parse_low_reg(ra); if(ra==0) return(1);
                 if(rm&(1<<rx))
                 {
-                    printf("<%u> Warning: You already specified r%u\n",line,rx);
+                    printf("<%s:%u> Warning: You already specified r%u\n",filename[currlevel],line[currlevel],rx);
                 }
                 rm|=(1<<rx);
                 if(newline[ra]=='}')
@@ -1031,7 +1079,7 @@ int assemble ( void )
                     }
                     else
                     {
-                        printf("<%u> Error: Invalid base register\n",line);
+                        printf("<%s:%u> Error: Invalid base register\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     if(newline[ra]==']')
@@ -1045,7 +1093,7 @@ int assemble ( void )
                         ra=parse_immed(ra); if(ra==0) return(1);
                         if((rx&0x3FC)!=rx)
                         {
-                            printf("<%u> Error: Invalid immediate\n",line);
+                            printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                             return(1);
                         }
                     }
@@ -1070,7 +1118,7 @@ int assemble ( void )
                             ra=parse_immed(ra); if(ra==0) return(1);
                             if((rx&0x7C)!=rx)
                             {
-                                printf("<%u> Error: Invalid immediate\n",line);
+                                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                             ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1104,7 +1152,7 @@ int assemble ( void )
                 ra=parse_branch_label(ra); if(ra==0) return(1);
                 if(is_const)
                 {
-                    printf("<%u> Error: not a label",line);
+                    printf("<%s:%u> Error: not a label",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 mem[curradd]=0x4800|(rd<<8)|0;
@@ -1136,7 +1184,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0x1F)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1188,7 +1236,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&(0x1F<<1))!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1278,7 +1326,7 @@ int assemble ( void )
                 ra=parse_immed(ra); if(ra==0) return(1);
                 if((rx<1)||(rx>32))
                 {
-                    printf("<%u> Error: Invalid immediate\n",line);
+                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 rx&=0x1F;
@@ -1315,7 +1363,7 @@ int assemble ( void )
                 ra=parse_immed(ra); if(ra==0) return(1);
                 if((rx<1)||(rx>32))
                 {
-                    printf("<%u> Error: Invalid immediate\n",line);
+                    printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 rx&=0x1F;
@@ -1361,7 +1409,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0xFF)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //mov rd,#immed_8
@@ -1401,7 +1449,7 @@ int assemble ( void )
             ra=parse_two_regs(ra); if(ra==0) return(1);
             if(rd==rm)
             {
-                printf("<%u> Warning: using the same register might not work\n",line);
+                printf("<%s:%u> Warning: using the same register might not work\n",filename[currlevel],line[currlevel]);
             }
             mem[curradd]=0x4340|(rm<<3)|rd;
             mark[curradd]=0x8000;
@@ -1459,7 +1507,7 @@ int assemble ( void )
                 {
                     if(rx!=15)
                     {
-                        printf("<%u> Error: Invalid Register\n",line);
+                        printf("<%s:%u> Error: Invalid Register\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     rx=8;
@@ -1492,7 +1540,7 @@ int assemble ( void )
                 {
                     if(rx!=14)
                     {
-                        printf("<%u> Error: Invalid Register\n",line);
+                        printf("<%s:%u> Error: Invalid Register\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     rx=8;
@@ -1551,7 +1599,7 @@ int assemble ( void )
                 ra=parse_low_reg(ra); if(ra==0) return(1);
                 if(rm&(1<<rx))
                 {
-                    printf("<%u> Warning: You already specified r%u\n",line,rx);
+                    printf("<%s:%u> Warning: You already specified r%u\n",filename[currlevel],line[currlevel],rx);
                 }
                 rm|=(1<<rx);
                 if(newline[ra]=='}')
@@ -1584,7 +1632,7 @@ int assemble ( void )
             {
                 if(rn!=13)
                 {
-                    printf("<%u> Error: Invalid base register\n",line);
+                    printf("<%s:%u> Error: Invalid base register\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
                 if(newline[ra]==']')
@@ -1598,7 +1646,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0x3FC)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                 }
@@ -1620,7 +1668,7 @@ int assemble ( void )
                         ra=parse_immed(ra); if(ra==0) return(1);
                         if((rx&0x7C)!=rx)
                         {
-                            printf("<%u> Error: Invalid immediate\n",line);
+                            printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                             return(1);
                         }
                         ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1673,7 +1721,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0x1F)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1725,7 +1773,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&(0x1F<<1))!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     ra=parse_character(ra,']'); if(ra==0) return(1);
@@ -1775,7 +1823,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0x1FC)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //sub sp,#immed_7*4
@@ -1785,7 +1833,7 @@ int assemble ( void )
                 }
                 else
                 {
-                    printf("<%u> Error: Invalid rd register\n",line);
+                    printf("<%s:%u> Error: Invalid rd register\n",filename[currlevel],line[currlevel]);
                     return(1);
                 }
             }
@@ -1798,7 +1846,7 @@ int assemble ( void )
                     ra=parse_immed(ra); if(ra==0) return(1);
                     if((rx&0xFF)!=rx)
                     {
-                        printf("<%u> Error: Invalid immediate\n",line);
+                        printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                         return(1);
                     }
                     //sub rd,#immed_8
@@ -1821,7 +1869,7 @@ int assemble ( void )
                             ra=parse_immed(ra); if(ra==0) return(1);
                             if((rx&0x7)!=rx)
                             {
-                                printf("<%u> Error: Invalid immediate\n",line);
+                                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                             //sub rd,rm,#immed_3
@@ -1853,7 +1901,7 @@ int assemble ( void )
             ra=parse_immed(ra); if(ra==0) return(1);
             if((rx&0xFF)!=rx)
             {
-                printf("<%u> Error: Invalid immediate\n",line);
+                printf("<%s:%u> Error: Invalid immediate\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
             mem[curradd]=0xDF00|rx;
@@ -1891,7 +1939,7 @@ int assemble ( void )
 
 
 // -----------------------------------------------------------
-        printf("<%u> Error: syntax error\n",line);
+        printf("<%s:%u> Error: syntax error\n",filename[currlevel],line[currlevel]);
         return(1);
     }
 
@@ -2611,23 +2659,34 @@ int main ( int argc, char *argv[] )
 
     if(argc!=2)
     {
-        printf("mas filename\n");
+        printf("tas filename\n");
         return(1);
     }
 
-    fpin=fopen(argv[1],"rt");
-    if(fpin==NULL)
+    currlevel=0;
+    curradd=0;
+    nlabs=0;
+    memset(mem,0x00,sizeof(mem));
+    memset(mark,0x00,sizeof(mark));
+
+    strcpy(filename[0],argv[1]);
+
+    fpin[0]=fopen(argv[1],"rt");
+    if(fpin[0]==NULL)
     {
         printf("Error opening file [%s]\n",argv[1]);
         return(1);
     }
-    ret=assemble();
-    fclose(fpin);
+    line[0]=0;
+    ret=assemble(0);
+    fclose(fpin[0]);
     if(ret)
     {
-        printf("failed %u\n",line);
+        printf("failed %u\n",line[0]);
         return(1);
     }
+
+    currlevel=0;
 
     for(ra=0;ra<nlabs;ra++)
     {
@@ -2641,7 +2700,8 @@ int main ( int argc, char *argv[] )
                 {
                     rx=lab_struct[rb].addr;
                     inst=mem[lab_struct[ra].addr];
-                    line=lab_struct[ra].line;
+                    line[currlevel]=lab_struct[ra].line;
+                    strcpy(filename[currlevel],lab_struct[ra].fname);
                     if((inst&0xF800)==0x0000)
                     {
                         //no this really isnt an lsl, using this to
@@ -2649,7 +2709,7 @@ int main ( int argc, char *argv[] )
                         inst2=mem[lab_struct[ra].addr+1];
                         if((inst2&0xF800)!=0x0000)
                         {
-                            printf("<%u> Error: expecting a .word\n",line);
+                            printf("<%s:%u> Error: expecting a .word\n",filename[currlevel],line[currlevel]);
                             return(1);
                         }
                         inst=rx&0xFFFF;
@@ -2674,7 +2734,7 @@ int main ( int argc, char *argv[] )
                         {
                             if((rd&rm)!=rm)
                             {
-                                printf("<%u> Error: Load destination too far\n",line);
+                                printf("<%s:%u> Error: Load destination too far\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                         }
@@ -2691,7 +2751,7 @@ int main ( int argc, char *argv[] )
                         {
                             if((rd&rm)!=rm)
                             {
-                                printf("<%u> Error: Branch destination too far\n",line);
+                                printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                         }
@@ -2708,7 +2768,7 @@ int main ( int argc, char *argv[] )
                         {
                             if((rd&rm)!=rm)
                             {
-                                printf("<%u> Error: Branch destination too far\n",line);
+                                printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                                 return(1);
                             }
                         }
@@ -2720,7 +2780,7 @@ int main ( int argc, char *argv[] )
                         inst2=mem[lab_struct[ra].addr+1];
                         if((inst2&0xF800)!=0xF800)
                         {
-                            printf("<%u> Error: bl should be a pair of instructions (internal error)\n",line);
+                            printf("<%s:%u> Error: bl should be a pair of instructions (internal error)\n",filename[currlevel],line[currlevel]);
                             return(1);
                         }
                         rd=rx-((lab_struct[ra].addr<<1)+4);
@@ -2730,7 +2790,7 @@ int main ( int argc, char *argv[] )
                         {
                             if((rd&rm)!=rm)
                             {
-                                printf("<%u> Error: Branch destination too far\n",line);
+                                printf("<%s:%u> Error: Branch destination too far\n",filename[currlevel],line[currlevel]);
                             }
                         }
                         inst|=(rd>>12)&0x7FF;
@@ -2740,7 +2800,7 @@ int main ( int argc, char *argv[] )
                     }
                     if(lab_struct[ra].type==1)
                     {
-                        printf("<%u> Error: internal error, unknown instruction 0x%08X\n",lab_struct[ra].line,inst);
+                        printf("<%s:%u> Error: internal error, unknown instruction 0x%08X\n",filename[currlevel],line[currlevel],inst);
                         return(1);
                     }
                     mem[lab_struct[ra].addr]=inst;
@@ -2749,7 +2809,7 @@ int main ( int argc, char *argv[] )
             }
             if(rb<nlabs) ; else
             {
-                printf("<%u> Error: unresolved label\n",lab_struct[ra].line);
+                printf("<%s:%u> Error: unresolved label\n",filename[currlevel],line[currlevel]);
                 return(1);
             }
         }
