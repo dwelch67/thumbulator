@@ -7,11 +7,12 @@ unsigned int read32 ( unsigned int );
 
 unsigned int read_register ( unsigned int );
 
-#define DBUGFETCH 0
-#define DBUGRAM 0
-#define DBUGRAMW 0
-#define DBUG 0
-#define DISS 0
+#define DBUGFETCH   0
+#define DBUGRAM     0
+#define DBUGRAMW    0
+#define DBUGREG     1
+#define DBUG        0
+#define DISS        1
 
 #define ROMADDMASK 0xFFFFF
 #define RAMADDMASK 0xFFFFF
@@ -308,9 +309,11 @@ unsigned int read_register ( unsigned int reg )
 
     reg&=0xF;
 if(DBUG) fprintf(stderr,"read_register(%u)=",reg);
+if(DBUGREG) fprintf(stderr,"read_register(%u)=",reg);
     data=reg_norm[reg];
     if(reg==15) data&=~1;
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
+if(DBUGREG) fprintf(stderr,"0x%08X\n",data);
     return(data);
 }
 //-------------------------------------------------------------------
@@ -318,6 +321,7 @@ void write_register ( unsigned int reg, unsigned int data )
 {
     reg&=0xF;
 if(DBUG) fprintf(stderr,"write_register(%u,0x%08X)\n",reg,data);
+if(DBUGREG) fprintf(stderr,"write_register(%u,0x%08X)\n",reg,data);
     if(reg==15) data&=~1;
     reg_norm[reg]=data;
 
@@ -2025,7 +2029,7 @@ if(DISS) fprintf(stderr,"uxth r%u,r%u\n",rd,rm);
         return(0);
     }
 
-    fprintf(stderr,"invalid instruction 0x%08X 0x%04X\n",pc,inst);
+    fprintf(stderr,"invalid instruction 0x%08X 0x%04X\n",pc-4,inst);
     return(1);
 }
 //-------------------------------------------------------------------

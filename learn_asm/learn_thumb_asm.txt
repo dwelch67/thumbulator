@@ -2,13 +2,30 @@
 This is a work in progress, very rough at the moment, expect errors
 and mispellings and rewrites.
 
-Before we start.  This is not going to cover in any great detail
-elementary basics like twos complement and the carry and overflow
-flags.  You should if not try at least read through the learn asm
-tutorial that is part of my lsasim project http://github.com/dwelch67/lsasim.  And as mentioned
-there you should have some level of general programming experience,
-in particular some C experience as some examples may be compared to
-or derived from C code.  For general programing experience try
+
+The prerequisite for this tutorial is some level of programming experience
+using a higher level language.  This tutorial is not going to show the
+basics of programming common to all languages.  This is for folks who
+have some programming experience and want to learn assembly language
+or want to learn assembly language for this platform (ARM's thumb
+instruction set).  I highly recommend experience programming in C, the
+tools (simulator and assembler) are written in C, C may be used to explain
+what is going in in the assembly language, etc.  You also need to have
+experience with binary representation of numbers, hexadecimal as well
+as decimal.  Also a working knowledge of twos complement is required.
+
+This tutorial will touch on twos complement and things like a carry
+flag and overflow, etc, but not go into great detail.  Perhaps later
+an appendix or separate document will cover those topics, for now
+you may wish to try my learn asm tutorial that is part of my lsasim project
+http://github.com/dwelch67/lsasim
+lsa is an instruction set I developed which resembled features from others
+specifically for educational purposes.  A first instruction set for
+teaching assembly language for example.  Once learning the lsa instruction
+set transitioning to ARM (32 bit or thumb instructions) should be relatively
+easy.
+
+If you dont have basic programming experience you might try these
 http://learnpythonthehardway.org and then perhaps
 http://c.learncodethehardway.org.  Please do not judge these books by
 their title,  it is not a bad method at all for teaching.
@@ -47,7 +64,8 @@ Lets dig in:
 ---------------------------------------------------------------------
 Lesson 0:  Building tools and first simulation
 
-This is the exception to the rule, this is to get you up and running.
+This is the exception to the rule of having code and output, this lesson
+is to get you up and running.
 
 Thumbulator is a simple, hopefully portable, single file program that
 should compile most anywhere.  The makefile is made for a linux/unix
@@ -76,6 +94,18 @@ lessons.   If you choose to though it may greatly help you debug your
 program.  Be careful though if you leave thumbulator running indefinitely
 with vcd output it can/will create a huge file.
 
+Until further notice, enable these two flags and leave the others
+disabled, this way your output will match the output in this tutorial.
+
+#define DBUGFETCH   0
+#define DBUGRAM     0
+#define DBUGRAMW    0
+#define DBUGREG     1
+#define DBUG        0
+#define DISS        1
+
+And re-build the thumbulator program.
+
 I have created and provided a thumb assembler so that you dont have
 to get your hands dirty finding or building a toolchain.  These lessons
 assume the tas thumb assembler that comes with thumbulator is used.
@@ -100,15 +130,12 @@ themselves.  It is time to perform this typing task for lesson 0:
 .word 0
 .word 0
 .hword 0xDEAD
-hang:
-    b hang
 ---- lesson00.s ----
 
 % tas lesson00.s
 
 tas output:
-label0000: [0x00000012] [hang] 0
-label0001: [0x00000009] [hang] 1
+assemble(0)
 0x00000000: 0x0000 data
 0x00000002: 0x4008 data
 0x00000004: 0x0011 data
@@ -118,13 +145,15 @@ label0001: [0x00000009] [hang] 1
 0x0000000C: 0x0000 data
 0x0000000E: 0x0000 data
 0x00000010: 0xDEAD data
-0x00000012: 0xE7FE b 0x00000012
+
 
 % thumbulator lesson.s.bin
 
 thumbulator output:
-invalid instruction 0x00000014 0xDEAD
 
+read_register(15)=0x00000012
+write_register(15,0x00000014)
+0x0000000F: 0xDEAD invalid instruction 0x00000014 0xDEAD
 
 instructions 1
 fetches      1
@@ -198,7 +227,6 @@ than it is to read and maintain
 hang:
     b hang
 
-
 Although the thumbulator project strives to be the older, more pure
 original thumb instruciton set, it uses the modern Cortex-M series
 exception table.  The Cortex-M series of ARM cores are basically thumb
@@ -208,20 +236,26 @@ to boot the processor and handle interrupts, etc will contain 32 bit
 ARM instructions, the processor simply starts executing at that address.
 The Cortex-M method is a bit more traditional, it has a table of addresses
 these are addresses to the code that handles that event, reset, data
-abort, etc.  And being thumb only processors the code at that address
-is thumb code, you cant and wont have any full sized ARM instructions.
-To prevent having to support even some ARM instructions I chose to
-use the Cortex-M method, in such a way that you can take the binary and
-with limitations of course have a binary that runs on thumbulator also
-run on real Cortex-M hardware.
+abort, etc.  So there is one level of indirection for the Cortex-M, go
+to the exception table, read an address, then go to that address and
+start executing code.  The traditional ARM method is without the
+indirection, just start executing code in the exception table.
+
+This is a thumb only processor (simulator) it will not execute full sized
+ARM instructions, only thumb.  Other than memory space and peripheral
+differences you can take code that runs here and run it on real Cortex-M
+hardware.
 
 The vector or exception table in a Cortex-M processor starts at address
-zero (0x00000000) as far as the processor itself is concerned.  The first
-32 bit location is used to pre-initialize the stack pointer.  This allows
-for example to have handlers, including reset, written in C or some
-other compiled language that conforms to the hardwares rules.  You are
-welcome of course to initialize the stack pointer the old fashioned way
-in asm in the reset handler.  this example uses
+zero (0x00000000).  The first 32 bit location is used to pre-initialize
+the stack pointer.  This allows for example to have handlers, including
+reset, written in C or some other compiled language without asm support
+code.   The compiler must conform to the hardwares rules in order to
+simply put a C function address in the exception table.  You are welcome
+to initialize the stack pointer the old fashioned way, nothing prevents
+you from doing that.
+
+this example uses
 
 .word 0x40080000
 
@@ -235,29 +269,43 @@ be.  First off this is a fixed 16 bit width instruction set, and the
 assembler dumps, etc do not use odd addresses.  The ARM processors that
 can switch modes between ARM and thumb use the lsbit of the address
 when using a specific instruction to indicate the mode being branched
-to.  When the lsbit is set it is thumb mode, clear, ARM mode.  to conform
-with that convention the hander is at address 0x10 and is thumb so the
-address 0x11 is used.
+to.  When the lsbit is set the branch is to a thumb code, when clear
+the destination is ARM instructions.  To conform with that convention
+the hander is at address 0x10 and is thumb code so the address 0x11 is
+used.
 
 Real Cortex-M processors have many vectors in the vector table, dozens
-to hundreds, really.  On real Cortex-M processors as well as thumbulator
+to hundreds...really.  On real Cortex-M processors as well as thumbulator
 if you are not using those vectors you can use that address space
-for code.  Because 0x10 is an easy address, it is 16 bytes or 4 32bit
-words.  So there are two more .word's after the .word 0x11 as padding.
+for code.  I have used a simple address like 0x10, which is 16 bytes or
+4 32bit words.  So there are two more .word's after the .word 0x11 used
+as padding and then our code starts.
 
-With the second word indicating address 0x10 as the entry point for reset
-that means as written .hword 0xDEAD is the first instruction to execute.
-As mentioned above 0xDEAD is an undefined instruction that will cause
-the thumbulator processor to halt.  Which was intentional in this case.
+So looking at the lesson0 code, the first line of code is a .word
+directive for the stack pointer load value.  The second line is a .word
+that tells the processor on reset start executing code at address 0x0010.
+We have two more .word lines to add some padding so that we have four
+words of header (16 bytes, bytes at addresses 0x00 to 0x0F, one short of
+0x10).  Then we see a
+.hword 0xDEAD
+.hword means halfword or 16 bits, place this 16 bit value in memory
+at this point in the program.  So the processor is going to try to
+start executing whatever this 0xDEAD machine code instruction is.
+Turns out it just happens to be an undefined instruction as far as the
+thumbulator processor is concerned and unlike real processors that
+call an undefined instruction exception, this processor halts, by design.
+Placing an undefined instruction here was intentional.
 
-hang: is a label, really no different than when you use them in C (Who
-uses them in C?  almost nobody, but if you did).  b is the branch
-instruction, unconditional branch or jump or the same as a goto in C.
-So hang: b hang is the same as hang: goto hang; in C, an infinite loop.
-Here just in case the 0xDEAD doesnt work this infinite loop should keep
-the processor from running amuck (it cant hurt anything though it is
-virtual).
+---------------------------------------------------------------------
+Lesson 1:  Load some immediates
 
+---- lesson00.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+.hword 0xDEAD
+---- lesson00.s ----
 
 
 
