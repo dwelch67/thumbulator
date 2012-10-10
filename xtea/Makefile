@@ -1,5 +1,6 @@
 
-ARMGNU = arm-none-linux-gnueabi
+#ARMGNU = arm-none-linux-gnueabi
+ARMGNU = arm-none-eabi
 
 COPS = -Wall -O2 -mthumb -nostdlib -nostartfiles -ffreestanding 
 AOPS = --warn --fatal-warnings
