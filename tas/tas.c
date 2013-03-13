@@ -2301,8 +2301,7 @@ void dissassemble ( FILE *fp, unsigned int addr, unsigned short inst )
     {
         rx=inst&0xFF; rx<<=2;
         rd=(inst>>8)&7;
-        if(rx&0x200) rm=0xFFFFFFFF<<10; else rm=0;
-        rm=addr+4+rx;
+        rm=((addr+4)&0xFFFFFFFC)+rx;
         if(rx==0) fprintf(fp,"ldr r%u,[pc] ; [0x%04X]",rd,rm);
         else      fprintf(fp,"ldr r%u,[pc,#0x%03X] ; %u [0x%04X]",rd,rx,rx,rm);
         return;
@@ -2720,25 +2719,15 @@ int main ( int argc, char *argv[] )
                     if((inst&0xF800)==0x4800)
                     {
                         //ldr rd,[pc,#immed_8]
-                        if(lab_struct[ra].addr&1)
+                        rm=(lab_struct[ra].addr<<1)+4;
+                        rm&=0xFFFFFFFC;
+                        rd=rx-rm;
+                        if(rd>0x3FC)
                         {
-                            rd=rx-((lab_struct[ra].addr<<1)+2);
+                            printf("<%s:%u> Error: Load destination too far 0x%08X\n",filename[currlevel],line[currlevel],rd);
+                            return(1);
                         }
-                        else
-                        {
-                            rd=rx-((lab_struct[ra].addr<<1)+4);
-                        }
-                        rm=0xFFFFFFFF;
-                        rm<<=8; //I think this is wrong by two or four
-                        if(rd&rm)
-                        {
-                            if((rd&rm)!=rm)
-                            {
-                                printf("<%s:%u> Error: Load destination too far\n",filename[currlevel],line[currlevel]);
-                                return(1);
-                            }
-                        }
-                        inst|=(rd>>2)&0x7FF;
+                        inst|=(rd>>2)&0xFF;
                         lab_struct[ra].type++;
                     }
                     if((inst&0xF000)==0xD000)

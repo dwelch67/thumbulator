@@ -10,9 +10,9 @@ unsigned int read_register ( unsigned int );
 #define DBUGFETCH   0
 #define DBUGRAM     0
 #define DBUGRAMW    0
-#define DBUGREG     1
+#define DBUGREG     0
 #define DBUG        0
-#define DISS        1
+#define DISS        0
 
 #define ROMADDMASK 0xFFFFF
 #define RAMADDMASK 0xFFFFF
@@ -465,7 +465,7 @@ int execute ( void )
     inst=fetch16(pc-2);
     pc+=2;
     write_register(15,pc);
-if(DISS) fprintf(stderr,"0x%08X: 0x%04X ",(pc-5),inst);
+if(DISS) fprintf(stderr,"0x%08X: 0x%04X ",(pc-4),inst);
 
 if(output_vcd)
 {

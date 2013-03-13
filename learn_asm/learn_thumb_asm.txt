@@ -296,18 +296,6 @@ thumbulator processor is concerned and unlike real processors that
 call an undefined instruction exception, this processor halts, by design.
 Placing an undefined instruction here was intentional.
 
----------------------------------------------------------------------
-Lesson 1:  Load some immediates
-
----- lesson00.s ----
-.word 0x40080000
-.word 0x11
-.word 0
-.word 0
-.hword 0xDEAD
----- lesson00.s ----
-
-
 
 
 
@@ -468,26 +456,1124 @@ instruction required to specify two registers.
 Reminder read through the lsasim project tutorial first, then come back
 here.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------
+Lesson 1:  Load some immediates
+
+---- lesson01.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#1
+mov r1,#2
+add r2,r0,r1
+add r3,r2,r1
+.hword 0xDEAD
+---- lesson01.s ----
+
+% ../tas/tas  lesson.s
+assemble(0)
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0x2001 mov r0,#0x01 ; 1
+0x00000012: 0x2102 mov r1,#0x02 ; 2
+0x00000014: 0x1842 add r2,r0,r1
+0x00000016: 0x1853 add r3,r2,r1
+0x00000018: 0xDEAD data
+
+
+read_register(15)=0x00000012
+write_register(15,0x00000014)
+0x00000010: 0x2001 movs r0,#0x01
+write_register(0,0x00000001)
+read_register(15)=0x00000014
+write_register(15,0x00000016)
+0x00000012: 0x2102 movs r1,#0x02
+write_register(1,0x00000002)
+read_register(15)=0x00000016
+write_register(15,0x00000018)
+0x00000014: 0x1842 adds r2,r0,r1
+read_register(0)=0x00000001
+read_register(1)=0x00000002
+write_register(2,0x00000003)
+read_register(15)=0x00000018
+write_register(15,0x0000001A)
+0x00000016: 0x1853 adds r3,r2,r1
+read_register(2)=0x00000003
+read_register(1)=0x00000002
+write_register(3,0x00000005)
+read_register(15)=0x0000001A
+write_register(15,0x0000001C)
+0x00000018: 0xDEAD invalid instruction 0x00000018 0xDEAD
+
+
+instructions 5
+fetches      5
+reads        0
+writes       0
+memcycles    5
+systick_ints 0
+
+
+
+
+
+
+
+
+What did it do?
+
+Think of registers as variables in a high level language, unlike a high
+level language you cant just have as many as you want, and they are
+already named so you use and reuse the same variables...
+
+Fixed word length instruction sets like thumb and arm and mips and
+some others, create problems when trying to use what is called an
+immediate.  If I want to perform this operation:
+
+x = 1 + 2;
+
+On an instruction set like this I need to put the value 1 in a register
+then put the value 2 in a register then add.  there are two basic ways
+to get a value in a register one is to use an immediate the other is
+to read the value from somewhere in memory into the register.  will so
+the second later.  The term immediate comes from the fact that the
+constant, the value, is encoded directly in the machine instruction.
+Looking the word immediate up in the dictionary, one of the definitions
+is
+
+having no object or space intervening; nearest or next: in the immediate
+vicinity.
+
+and that is why we use the word immediate with these types of instructions
+the constant is in the immediate vicinity of the instruciton, it is part
+of the instruction.  so these two instructions if you look at them have
+some bits that define the immediate
+
+mov r0,#1
+mov r1,#2
+
+0x00000010: 0x2001 mov r0,#0x01 ; 1
+0x00000012: 0x2102 mov r1,#0x02 ; 2
+
+the lower 8 bits are the immediate, in the last two nibbles of 0x2001
+we see the 0x01 immediate.  In the lower two nibbles of 0x2102 we see
+the 0x02 immediate.
+
+I invite you to look at the instruction encoding in the ARM
+documentation to see where the 8 bits of immediate are in the machine
+code and where the destination register is.
+
+mov rd,#immed_8
+0x2000|(rd<<8)|immed_8;
+
+so we watch those two instructions execute
+
+
+
+read_register(15)=0x00000012
+
+r15 is the program counter it points at the next instruction to be
+executed, the memory fetch is not shown in this dump, but after
+using r15 to fetch the instruction r15 is modified to point at the
+next instruction, each instruction is 2 bytes so 12+2 = 14
+
+write_register(15,0x00000014)
+
+DISS is enabled in thumbulator so the instruction is disassembled.
+
+0x00000012: 0x2001 movs r0,#0x01
+
+And the execution results in setting r0 to the value 0x00000001
+
+write_register(0,0x00000001)
+
+Even though the immediate is only 8 bits in the instruction the
+immediate value is zero padded to become a 32 bit value to save in
+the 32 bit register r0.
+
+
+The next instruction
+
+0x00000016: 0x1842 adds r2,r0,r1
+
+when you see that syntax, visualize:  r2 = r0 + r1
+
+In order to perform that operation we need to get the source registers
+r0 and r1 which we loaded with values above
+
+read_register(0)=0x00000001
+read_register(1)=0x00000002
+
+when we add those together, 1+2 = 3, we save the result in r2
+
+write_register(2,0x00000003)
+
+For fun lets do another add
+
+0x00000018: 0x1853 adds r3,r2,r1
+
+r3 = r2 + r1
+
+earlier we saved the number 2 to r1 and we just computed a 3 and put that
+in r2 so r3 = 3 + 2 = 5, save a 5 in r3.
+
+read_register(2)=0x00000003
+read_register(1)=0x00000002
+write_register(3,0x00000005)
+
+Why does the assembly use "mov" and "add" and the disassembly uses "movs"
+and "adds"?
+
+Mostly because the gnu folks mess up assembly language when the touch it.
+When you move up from thumb instructions to thumb2 or arm instructions
+there will be an option to use "add" or "adds", the former does not
+change the flags, the latter does.  What are flags?  We will get to that
+in due time.  The thumb instructions in order to be 16 bit instead of
+32 bit gave up that option, so the ones that had an option to modify
+flags in ARM do not have that option in thumb, they always modify the
+flags.
+
+if you look at your ARM documentation, for the thumb mov instruction
+
+N Flag = Rd[31]
+Z Flag = if Rd == 0 then 1 else 0
+C Flag = unaffected
+V Flag = unaffected
+
+no options the N and Z are always modified
+
+the equivalent arm instruction says:
+
+if S == 1 then
+  N Flag = Rd[31]
+  Z Flag = if Rd == 0 then 1 else 0
+  C Flag = shifter_carry_out
+  V Flag = unaffected
+
+the flags are optionally modified.
+
+Also the arm documentation uses mov and add when defining the instruction
+but it has the feel of an ARM movs and adds.  When you disassemble code
+like this with the gnu tools you also get movs and adds.  So I am trying
+to make the experience similar to what you will see outside this
+simulator environment.
+
+
+---------------------------------------------------------------------
+Lesson 2:  Bigger immediates
+
+---- lesson02.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#0x12
+lsl r0,r0,#8
+mov r1,#0x34
+orr r0,r1
+lsl r0,r0,#8
+mov r1,#0x56
+orr r0,r1
+lsl r0,r0,#8
+mov r1,#0x78
+orr r0,r1
+.hword 0xDEAD
+---- lesson02.s ----
+
+% ../tas/tas  lesson.s
+assemble(0)
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0x2012 mov r0,#0x12 ; 18
+0x00000012: 0x0200 lsl r0,r0,#8
+0x00000014: 0x2134 mov r1,#0x34 ; 52
+0x00000016: 0x4308 orr r0,r1
+0x00000018: 0x0200 lsl r0,r0,#8
+0x0000001A: 0x2156 mov r1,#0x56 ; 86
+0x0000001C: 0x4308 orr r0,r1
+0x0000001E: 0x0200 lsl r0,r0,#8
+0x00000020: 0x2178 mov r1,#0x78 ; 120
+0x00000022: 0x4308 orr r0,r1
+0x00000024: 0xDEAD data
+
+
+% ../thumbulator lesson.s.bin
+read_register(15)=0x00000012
+write_register(15,0x00000014)
+0x00000010: 0x2012 movs r0,#0x12
+write_register(0,0x00000012)
+read_register(15)=0x00000014
+write_register(15,0x00000016)
+0x00000012: 0x0200 lsls r0,r0,#0x8
+read_register(0)=0x00000012
+write_register(0,0x00001200)
+read_register(15)=0x00000016
+write_register(15,0x00000018)
+0x00000014: 0x2134 movs r1,#0x34
+write_register(1,0x00000034)
+read_register(15)=0x00000018
+write_register(15,0x0000001A)
+0x00000016: 0x4308 orrs r0,r1
+read_register(0)=0x00001200
+read_register(1)=0x00000034
+write_register(0,0x00001234)
+read_register(15)=0x0000001A
+write_register(15,0x0000001C)
+0x00000018: 0x0200 lsls r0,r0,#0x8
+read_register(0)=0x00001234
+write_register(0,0x00123400)
+read_register(15)=0x0000001C
+write_register(15,0x0000001E)
+0x0000001A: 0x2156 movs r1,#0x56
+write_register(1,0x00000056)
+read_register(15)=0x0000001E
+write_register(15,0x00000020)
+0x0000001C: 0x4308 orrs r0,r1
+read_register(0)=0x00123400
+read_register(1)=0x00000056
+write_register(0,0x00123456)
+read_register(15)=0x00000020
+write_register(15,0x00000022)
+0x0000001E: 0x0200 lsls r0,r0,#0x8
+read_register(0)=0x00123456
+write_register(0,0x12345600)
+read_register(15)=0x00000022
+write_register(15,0x00000024)
+0x00000020: 0x2178 movs r1,#0x78
+write_register(1,0x00000078)
+read_register(15)=0x00000024
+write_register(15,0x00000026)
+0x00000022: 0x4308 orrs r0,r1
+read_register(0)=0x12345600
+read_register(1)=0x00000078
+write_register(0,0x12345678)
+read_register(15)=0x00000026
+write_register(15,0x00000028)
+0x00000026: 0xDEAD invalid instruction 0x00000024 0xDEAD
+
+
+instructions 11
+fetches      11
+reads        0
+writes       0
+memcycles    11
+systick_ints 0
+
+All right, I can load immediates and do stuff with them, why make a big
+deal out of it?  Well you learned in lesson 1 to load small immediates
+so you can load 0x12, and 0x45 and numbers like that but what about
+0x12345678
+
+Go ahead try it:
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#0x12345678
+
+../tas/tas  lesson.s
+assemble(0)
+<lesson.s:5> Error: Invalid immediate
+failed 5
+
+you cant stick 32 bits in a place that only holds 8 bits.  So this
+example shows the most painful way for loading any number into a register.
+If you think about it using a higher level language like C:
+
+//r0 = 0x12345678;
+r0 = 0x12; //r0 now holds 0x00000012
+r0 = r0 <<8; //r0 now holds 0x00001200
+r0 = r0 | 0x34; //r0 now holds 0x00001234
+r0 = r0 <<8; //r0 now holds 0x00123400
+r0 = r0 | 0x56; //r0 now holds 0x00123456
+r0 = r0 <<8; //r0 now holds 0x12345600
+r0 = r0 | 0x78; //r0 now holds 0x12345678
+
+And that is basically what this example does, but since we cannot
+or a register and an immediate using thumb instructions we need even
+more steps.
+
+
+r0 = 0x12;
+r0 = r0 <<8;
+r1 = 0x34;
+r0 = r0 | r1;
+r0 = r0 <<8;
+r1 = 0x56;
+r0 = r0 | r1;
+r0 = r0 <<8;
+r1 = 0x78;
+r0 = r0 | r1;
+
+And that is exactly what this example does.
+
+mov r0,#0x12   r0 = 0x12;
+lsl r0,r0,#8   r0 = r0 <<8;
+mov r1,#0x34   r1 = 0x34;
+orr r0,r1      r0 = r0 | r1;
+lsl r0,r0,#8   r0 = r0 <<8;
+mov r1,#0x56   r1 = 0x56;
+orr r0,r1      r0 = r0 | r1;
+lsl r0,r0,#8   r0 = r0 <<8;
+mov r1,#0x78   r1 = 0x78;
+orr r0,r1      r0 = r0 | r1;
+
+Notice the or operation uses an orr syntax, I have no idea why also
+xor uses the syntax eor in ARM, no idea why, it is what it is.
+
+Some thumb math instructions like the add we saw before support three
+registers
+
+add r1,r2,r3  r1 = r2 + r3
+
+Other instructions like the orr limit you to two registers
+
+orr r1,r2
+
+the first operand and the result are the same register so you mess up
+one of your operand registers by having to store the result in it.  three
+register instructions are preferred of course because you can if you want
+but you dont HAVE TO mess up one of the registers by saving a result in
+it.  The ARM instructions have three register versions for everything,
+the thumb do not, most are two register.  for our program above this
+works out fine because we didnt need to save that operand for future use
+we wanted to modify the register anyway.
+
+In the end you see that we were able, finally, to store the value
+0x12345678 in the register r0.
+
+write_register(0,0x12345678)
+
+
+
+---------------------------------------------------------------------
+Lesson 3:  A solution for any immediate
+
+---- lesson03.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+ldr r0,orange
+ldr r1,apple
+str r0,[r1]
+.hword 0xDEAD
+.align
+apple: .word 0xD0000020
+orange: .word 0x12345678
+---- lesson03.s ----
+
+% ../tas/tas  lesson.s
+assemble(0)
+label0000: [0x00000008] [orange] 1
+label0001: [0x00000009] [apple] 1
+label0002: [0x00000018] [apple] 0
+label0003: [0x0000001C] [orange] 0
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0x4802 ldr r0,[pc,#0x008] ; 8 [0x001C]
+0x00000012: 0x4901 ldr r1,[pc,#0x004] ; 4 [0x001A]
+0x00000014: 0x6008 str r0,[r1]
+0x00000016: 0xDEAD data
+0x00000018: 0x0020 data
+0x0000001A: 0xD000 data
+0x0000001C: 0x5678 data
+0x0000001E: 0x1234 data
+
+% ../thumbulator lesson.s.bin
+read_register(15)=0x00000012
+write_register(15,0x00000014)
+0x00000010: 0x4802 ldr r0,[PC+#0x8] read_register(15)=0x00000014
+;@ 0x1C
+write_register(0,0x12345678)
+read_register(15)=0x00000014
+write_register(15,0x00000016)
+0x00000012: 0x4901 ldr r1,[PC+#0x4] read_register(15)=0x00000016
+;@ 0x18
+write_register(1,0xD0000020)
+read_register(15)=0x00000016
+write_register(15,0x00000018)
+0x00000014: 0x6008 str r0,[r1,#0x0]
+read_register(1)=0xD0000020
+read_register(0)=0x12345678
+0x12345678
+read_register(15)=0x00000018
+write_register(15,0x0000001A)
+0x00000018: 0xDEAD invalid instruction 0x00000016 0xDEAD
+
+
+instructions 4
+fetches      4
+reads        4
+writes       0
+memcycles    8
+systick_ints 0
+
+
+Lots of new things in this lesson.  First, labels.  You should have
+learned about labels in C.  Greatly frowned upon in C programming but
+hopefully you had at least had one lecture or lesson using goto
+
+y = 0;
+if(x == 0) goto there;
+y = 7;
+there:
+y+=5;
+
+What the label really does is create a placeholder for an address that
+the compiler or assembler fills in for you later.
+
+So what we have here is two separate things
+
+orange: .word 0x12345678
+
+first, think of this all by itself it is a label, orange, we will refer
+to it by the label, the assembler will use this label to figure out what
+address we are talking about in our program then later when it computes
+all the machine code for us it figures out the address then fills it
+in...for us...
+
+orange:
+
+What use is an address by itself?  Well there are two primary reasons
+we use a label, one is for jumping or branching as we saw in the C
+example above (a goto in C is no different than a jump or branch in
+assembly, we will see this later).  The second is if we want to have
+some data and read or write that data we want to have a base address
+to read/write from.
+
+.word 0x12345678
+
+.word is a directive.  A directive is not an assembly language
+instruction that wants to be a machine code instruction, instead it is
+a way to tell the assembler something.  Like a pragma or define in
+C, where you are not actually writing code but telling the compiler
+something.  In this case .word means stick the 32 bit value I specify
+in the program at this location.  You can put more than one on a line
+banana: .word 1,2,3,4
+would put four 32 bit values in memory in that order.  at the address
+banana+0 the number 0x00000001, banana+4 0x00000002, banana+8 0x00000003
+and banana+12 0x00000004, so you can see the relationship between the
+label as a base address and the directive for placing stuff in memory.
+
+Putting a label and another instruction or directive on the same line
+is generally valid in assembly language (there are no absolutes as soon
+as I say "always" someone will find an assembler that does not support
+it).
+
+orange: .word 0x12345678
+
+So basically we want the value 0x12345678 in the program memory space
+at the address orange, the value for orange will be figured out by the
+assembler later, for our code we just use the word orange.
+
+So
+
+ldr r0,orange
+
+ldr means load register or read a 32 bit value from memory at the
+specified address, and save that value in the specified register.
+
+In this case we want to read memory at the address orange and what we
+read from that address put in the register r0.  You can already see
+where this is going, with the use of one instruction and one 32 bit
+chunk of memory we have put a value in a register, and we use this
+method for loading any 32 bit value into a register, we are not
+limited to 8 bits at a time.
+
+So the sim shows
+
+0x00000010: 0x4802 ldr r0,[PC+#0x8] read_register(15)=0x00000014
+;@ 0x1C
+write_register(0,0x12345678)
+
+we dont see the memory cycle in this output, but we do see that the
+result is 0x12345678 is saved to r0.
+
+now what is PC+#0x08?
+
+well if you look through the ARM documentation you see there are a few
+flavors of ldr
+
+LDR <Rd>, [<Rn>, #<immed_5> * 4]
+LDR <Rd>, [<Rn>, <Rm>]
+LDR <Rd>, [PC, #<immed_8> * 4]
+LDR <Rd>, [SP, #<immed_8> * 4]
+
+That is it, those are our choices for thumb for ways we can read
+a 32 bit value from memory and put it in a register (actually there is
+at least one other way but that is another lesson).
+
+What does this syntax mean?
+
+
+LDR <Rd>, [<Rn>, #<immed_5> * 4]
+
+the value read from register Rn (Rn is R0 to R7) add to that the 5 bit
+immediate times 4.  Well to use that instruction we would need to load
+a register with an address then after doing that we could use this
+instruction.  that is not what happened here.
+
+LDR <Rd>, [<Rn>, <Rm>]
+
+This one says take the contents of rn add to that the contents of rm
+and use that result as an address, read from that address and put the
+value read in rd?  We need to load two registers before using this
+instruciton, we didnt do that.
+
+LDR <Rd>, [PC, #<immed_8> * 4]
+
+This one says take the program counter value, r15, whatever it happens
+to be at the time we execute this instruction, add to that the 8 bit
+immediate times 4 which is in this instruction.  We dont have to use any
+other instructions to use this instruction, we just have to figure out
+what the program counter, r15 is, and then figure out an offset.
+
+LDR <Rd>, [SP, #<immed_8> * 4]
+
+This is just like the PC instruction before it except it uses r13, the
+stack pointer (SP) register instead of r15 the program counter (PC)
+register.  We could use this if we knew what sp was and we could figure
+out the address of orange relative to the stack pointer.
+
+So we know the answer, the "pc relative" instruction was used.
+
+0x00000010: 0x4802 ldr r0,[PC+#0x8] read_register(15)=0x00000014
+
+And this is why all the language about the "assembler figures out the
+address for you".
+
+Notice that none of the four instructions in the arm documentation looked
+like this:
+
+LDR <Rd>, LABEL
+
+That is because as an assembly language programmer you find out that
+the assembler is going to use the appropriate instruction to complete
+that operation.  sometimes there is more than one way to do it and you
+might need more syntax in the assembly language to specify which one
+you want.  For this instruction set that syntax means only one thing,
+pc relative.
+
+So what the assembler figured out is that orange is the address 0x1C and
+apple is 0x18
+
+label0002: [0x00000018] [apple] 0
+label0003: [0x0000001C] [orange] 0
+...
+0x00000010: 0x4802 ldr r0,[pc,#0x008] ; 8 [0x001C]
+...
+0x0000001C: 0x5678 data
+0x0000001E: 0x1234 data
+
+The instruction in question, after assembling lives at address 0x10
+so working backwards 0x1C - 0x10 = 0xC so PC+0xC right?  No it is
+pc + 0x8.  Why?  The program counter is always two instructions ahead.
+
+The simulator does a bit of cheating (and actually so does the hardware)
+
+read_register(15)=0x00000012
+write_register(15,0x00000014)
+0x00000010: 0x4802 ldr r0,[PC+#0x8] read_register(15)=0x00000014
+
+the end result is the same just as we enter the instruction the program
+counter is 4 bytes ahead of the instruction so when we execute the
+instruction at address 0x10 the program counter contains 0x14.  some
+instructions may change the program counter and that is fine, but
+instructions like this that use the program counter have to be aware of
+this two ahead fact.  And I say two ahead rather than 4 bytes because
+when you add to your thumb experience thumb2 extensions, the end result
+is the program counter is still two "instructions" ahead, thumb instructions
+are always 2 bytes, ARM instructions always 4 bytes, thumb2 extensions
+are always 2 bytes.  So in thumb mode with a processor that supports
+thumb2 extensions can have 2 or 4 byte instructions so "two ahead" can
+be 4, 6, or 8 bytes.  Without thumb2 extensions thumb "two ahead" is 4
+bytes and ARM "two ahead" is 8 bytes.
+
+The idea behind this two ahead thing is the traditional notion of a
+pipelined processor, I say the processor cheats because, no doubt, the
+processor pipeline is deeper than this notion implies.  the implied
+pipeline is that when executing the instruction at address 0x10 the
+instruction at address 0x14 is being read from memory or fetched.  The
+instruction at address 0x12 had already been read from memory is being
+decoded and the instruction at address 0x10 is being executed so the
+illusion is that at the "same time" we have one instruciton being fetched
+one being decoded and one executing.  The thumbulator does not use
+a pipeline, it cheats it simply has to fetch the right instruction
+from the right address and make sure the program counter has a value
+that is that address plus two instructions before it tries to execute it.
+
+    inst=fetch16(pc-2);
+    pc+=2;
+    write_register(15,pc);
+
+So anyway back to the instruction at hand.  the assembler as it does its
+thing has figured out that the machine code for this ldr instruction is
+at address 0x10, and the label orange is at address 0x1C.  The assembler
+knows as we now know that when executing the instruction at address 0x10
+the program counter, r15, will contain the value 0x14.  So
+
+0x1C - 0x14 = 0x08.
+
+Now we have to be careful here, the actual instruciton encoding is
+pc,#immed_8 * 4
+
+so [pc+0x08] is really [pc+(0x02*4)] note the 02 at the end
+of the machine code (0x4802)?
+
+This creates a problem that may not be immediately obvious to you, what
+if orange were at address 0x1A not 0x1C?
+
+0x1A - 0x14 = 0x06.
+
+6 / 4 = 1.5  we cannot put the value 1 and a half in binary into that
+immediate slot which only holds whole numbers 0 to 255.
+
+And before we solve that problem, we have another problem, what if
+the instruction were at address 0x12 not 0x10 (and orage was at 0x1C)
+
+0x1C - (0x12+4) = 0x1C - 0x16 = 0x6
+
+same problem in a different form!
+
+Now to the ARM manual for a little bit of help, but not the whole story
+
+address = (PC & 0xFFFFFFFC) + (immed_8 * 4)
+
+That solves the second problem if we are executing the instruction at
+address 0x12 then the program counter is 0x16 which in binary is
+0b10110.  Anding with 0xFFFFFFFC makes the lower two bits a zero and
+leaves the upper bits untouched. so the program counter in binary
+
+0000....10110
+1111....11100 AND
+=================
+0000000010100
+
+which is 0x14
+
+solving backward for immed_8
+address = (PC & 0xFFFFFFFC) + (immed_8 * 4)
+address - (PC & 0xFFFFFFFC) = immed_8 * 4
+[address - (PC & 0xFFFFFFFC)] / 4 = immed_8
+
+And for this hypothetical instruction at 0x12 (pc at 0x16) and orange at
+0x1C
+
+[0x1C - (0x16 &0xFFFFFFFC)] / 4 = immed_8
+[0x1C - 0x14] / 4 = immed_8
+0x8 / 4 = immed_8
+
+and 0x8/4 has no remainder so we dont have a problem.  We still have
+the problem if address is not a multiple of 4  the PC & 0xFFFFFFFC
+forces the second term in the [brackets] to be a multiple of 4.
+
+if you have learned on an x86 machine to deal with addresses you can
+pretty much do whatever you want.  You may not be aware that by using
+"unaligned" addresses you created a performance penalty for your program
+but if it ran "fast enough" who cares.  Well other architectures in order
+to be less complicated, faster, less power hungry, etc use aligned
+addresses.  If you want to read or write a 32 bit value then you can only
+use addresses that are aligned to 32 bits.  32 bits = 4 bytes and aligned
+to 32 bits means the address is an integral multiple of 4.  0, 4, 8
+12, 16, and so on.  More modern arm processors tolerate unaligned accesses
+actually older ones do too, but the result was not what you would have
+expected, on the newer ones it is what you expect.  Because programmers
+have such a hard time with this alignment thing, the hardware caved in
+and burned more real estate, burned more power, ran slower, and let you
+have unaligned accesses.  it is possible on all arm processors (that
+I know of) to force alignment, such that if you try to perform an unalgined
+access you get an exception (program stops executing and an exception
+handler is called).
+
+Now you may have seen this directive in the code:
+
+.align
+
+As the assembler goes through the code it is building the binary,
+the machine code and plugging in data from .hword and .word directives
+and such.  It is keeping track of instructions that use labels and
+their addresses and when it finds and computes a label it keeps
+track of that address.  if it hits a .word and the address it is
+tracking at that time is not on a 4 byte boundary, the assembler, at
+least my assembler tas, will complain.
+
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+.hword 0xDEAD
+orange: .word 0x12345678
+
+../tas/tas  lesson.s
+assemble(0)
+<lesson.s:6> Error: not word aligned
+failed 6
+
+Now you can fix that by putting another two byte thing in the code, perhaps
+another halfword:
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+.hword 0xDEAD
+.hword 0
+orange: .word 0x12345678
+
+
+../tas/tas  lesson.s
+assemble(0)
+label0000: [0x00000014] [orange] 0
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0xDEAD data
+0x00000012: 0x0000 data
+0x00000014: 0x5678 data
+0x00000016: 0x1234 data
+
+
+happy, but now we add some more code:
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#0
+.hword 0xDEAD
+.hword 0
+orange: .word 0x12345678
+
+../tas/tas  lesson.s
+assemble(0)
+<lesson.s:8> Error: not word aligned
+failed 8
+
+Not happy.and we have to keep adding and removing stuff to hand tune
+the alignment of that .word entry because we know we are going to read
+that thing as a word so it has to be on a word boundary
+(in the ARM world, word = 32 bits, halfword = 16 bits, doubleword = 64 bits)
+
+The .align directive as used here and supported by tas (and gnu assembler)
+will align the internal address being tracked by the assembler on a word
+boundary so it will add some bytes to the binary until it gets to the
+next aligned boundary then it will continue assembling.
+
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#1
+.hword 0xDEAD
+.align
+orange: .word 0x12345678
+
+assembler is happy
+
+mess with the alignment by adding another instruction:
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+mov r0,#0
+mov r0,#1
+.hword 0xDEAD
+.align
+orange: .word 0x12345678
+
+
+../tas/tas  lesson.s
+assemble(0)
+<lesson.s:8> Adding halfword to align on a word boundary
+label0000: [0x00000018] [orange] 0
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0x2000 mov r0,#0x00 ; 0
+0x00000012: 0x2101 mov r1,#0x01 ; 1
+0x00000014: 0xDEAD data
+0x00000016: 0x0000 data
+0x00000018: 0x5678 data
+0x0000001A: 0x1234 data
+
+at address 0x16 the assembler added 16 bits of zeros between the 0xDEAD
+halfword and the 0x12345678 word so that 0x12345678 would be at the 32
+bit aligned address 0x18. Note that arm is a little endian machine so
+the lower significant bytes or halfwords are shown first in memory
+and the most significant stuff is next in memory.  This dump is in
+units of 16 bit halfwords so the lower half is in the lower address
+0x18 and the upper half at address 0x1A, but taken as a 32 bit value
+the 32 bit value 0x12345678 is at address 0x18.
+
+So that very long story is how we make sure that
+
+ldr r0,orange
+
+works without upsetting the assembler which is only trying to help
+you make valid machine code.
+
+Also note that the ARM documentation implies that the offset added
+to PC is a positive number we have an 8 bit immediate and that is times
+4, so (0 - 255) * 4 = 0 to 1020.  We can only load things that are
+out in front of the ldr instruciton, not stuff that is behind.
+
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+orange: .word 0x12345678
+mov r0,#0
+mov r1,#1
+ldr r1,orange
+.hword 0xDEAD
+
+../tas/tas lesson.s
+assemble(0)
+label0000: [0x00000010] [orange] 0
+label0001: [0x0000000C] [orange] 1
+<../learn_asm/lesson.s:8> Error: Load destination too far 0xFFFFFFF4
+
+So we have to remember to put stuff in front of the ldr if we want
+to use the pc relative label like this.  (We will learn other tricks later).
+
+So back to our program
+
+ldr r0,orange
+ldr r1,apple
+str r0,[r1]
+.hword 0xDEAD
+.align
+apple: .word 0xD0000020
+orange: .word 0x12345678
+
+
+we move the value at address orange into r0 (0x12345678) we move the
+value at address apple (0xD0000020) into r1, then we do a store
+
+str r0,[r1]
+
+we kind of talked about this instruction
+
+LDR <Rd>, [<Rn>, #<immed_5> * 4]
+
+well there is a store version of it as well
+
+STR <Rd>, [<Rn>, #<immed_5> * 4]
+
+if load means read from memory and put the value in a register, then
+store would, and does, mean take the value from the register and write
+it to memory at the specified address.
+
+In this case we have put the address 0xD0000020 in register r1, because
+we did not put any modifiers on it the implied offset is zero
+
+str r0,[r1,#0]
+
+we can take a shortcut and not put that implied zero in our code
+
+str r0,[r1]
+
+Why would I write 0x12345678 to memory at address 0xD0000020?
+
+Well for this "system" which is the thumbulator simulator there is
+something there to help you debug your programs:
+
+        case 0xD0000000: //debug
+            switch(addr&0xFF)
+            {
+                case 0x00:
+                {
+                    fprintf(stderr,"[0x%08X][0x%08X] 0x%08X\n",read_register(14),addr,data);
+                    return;
+                }
+                case 0x10:
+                {
+                    printf("0x%08X ",data);
+                    return;
+                }
+                case 0x20:
+                {
+                    printf("0x%08X\n",data);
+                    return;
+                }
+            }
+
+If we write to 0xD0000000+0x10 then it prints the number in hex with a
+space following, if 0xD0000000+0x20 then it prints the number in hex with
+a line feed.  If we look at our thumbulator output for this program:
+
+0x00000014: 0x6008 str r0,[r1,#0x0]
+read_register(1)=0xD0000020
+read_register(0)=0x12345678
+0x12345678
+
+Sure enough it really did print that out.
+
+---------------------------------------------------------------------
+
+go into the thumbulator source code and change these defines to this
+
+#define DBUGFETCH   0
+#define DBUGRAM     0
+#define DBUGRAMW    0
+#define DBUGREG     0
+#define DBUG        0
+#define DISS        0
+
+And re-compile using make.  Until further notice the thumbulator output
+is based on a thumbulator built with these options.
+
+---------------------------------------------------------------------
+Lesson 4:  Lets try this again
+
+---- lesson03.s ----
+.word 0x40080000
+.word 0x11
+.word 0
+.word 0
+ldr r0,debug
+ldr r1,orange
+ldr r2,banana
+str r1,[r0,#0x10]
+str r2,[r0,#0x10]
+.hword 0xDEAD
+.align
+debug: .word 0xD0000000
+orange: .word 0x12345678
+banana: .word 0xAABBCCDD
+---- lesson03.s ----
+
+% ../tas/tas lesson.s
+assemble(0)
+label0000: [0x00000008] [debug] 1
+label0001: [0x00000009] [orange] 1
+label0002: [0x0000000A] [banana] 1
+label0003: [0x0000001C] [debug] 0
+label0004: [0x00000020] [orange] 0
+label0005: [0x00000024] [banana] 0
+0x00000000: 0x0000 data
+0x00000002: 0x4008 data
+0x00000004: 0x0011 data
+0x00000006: 0x0000 data
+0x00000008: 0x0000 data
+0x0000000A: 0x0000 data
+0x0000000C: 0x0000 data
+0x0000000E: 0x0000 data
+0x00000010: 0x4802 ldr r0,[pc,#0x008] ; 8 [0x001C]
+0x00000012: 0x4903 ldr r1,[pc,#0x00C] ; 12 [0x0020]
+0x00000014: 0x4A03 ldr r2,[pc,#0x00C] ; 12 [0x0024]
+0x00000016: 0x6101 str r1,[r0,#0x10] ; 16
+0x00000018: 0x6102 str r2,[r0,#0x10] ; 16
+0x0000001A: 0xDEAD data
+0x0000001C: 0x0000 data
+0x0000001E: 0xD000 data
+0x00000020: 0x5678 data
+0x00000022: 0x1234 data
+0x00000024: 0xCCDD data
+0x00000026: 0xAABB data
+
+% ../thumbulator lesson.s.bin
+invalid instruction 0x0000001A 0xDEAD
+0x12345678 0xAABBCCDD
+
+instructions 6
+fetches      6
+reads        6
+writes       0
+memcycles    12
+systick_ints 0
+
+The thumbulator output is reduced, we dont see our instructions in
+order, but we do see the debug output.  Now this was done using a
+different variation on the instructions we already talked about.
+
+ldr r0,debug
+
+  r0 = 0xD0000000
+
+ldr r1,orange
+
+  r1 = 0x12345678
+
+ldr r2,banana
+
+  r2 = 0xAABBCCDD
+
+str r1,[r0,#0x10]
+
+  write 0x12345678 to address [r0 + 0x10] which is 0xD0000000+0x10 = 0xD0000010
+  with this "system" (thumbulator) that causes the value to be printed out with
+  a space after
+
+str r2,[r0,#0x10]
+
+  write 0xAABBCCDD to 0xD0000020 which causes the value to be written with a
+  line feed after.  usually that implies a carriage return + line feed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 This is a work in progress...
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
