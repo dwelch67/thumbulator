@@ -28,7 +28,7 @@ clean :
 #ARMGNU = arm-none-linux-gnueabi
 ARMGNU = arm-none-eabi
 
-COPS = -Wall -O2 -mthumb -nostdlib -nostartfiles -ffreestanding 
+COPS = -Wall -O3 -mthumb -nostdlib -nostartfiles -ffreestanding 
 AOPS = --warn --fatal-warnings
 
 
@@ -87,22 +87,5 @@ lpicojpegtest.bin : memmap vectors.o putget.o embedded.bc picojpegtest.bc picojp
 	$(ARMGNU)-objdump -D lpicojpegtest.elf > lpicojpegtest.list
 	$(ARMGNU)-objcopy lpicojpegtest.elf -O binary lpicojpegtest.bin 
 
-
-xpicojpegtest.bin : memmap vectors.o putget.o embedded.bc picojpegtest.bc picojpeg.bc uart.bc
-	#opt $(OOPS) embedded.bc -o embedded.opt.bc
-	#opt $(OOPS) picojpeg.bc -o picojpeg.opt.bc
-	#opt $(OOPS) picojpegtest.bc -o picojpegtest.opt.bc
-	#opt $(OOPS) uart.bc -o uart.opt.bc
-	#llc $(LLCOPS) embedded.opt.bc -filetype obj -o xembedded.o
-	llc $(LLCOPS) picojpeg.bc -filetype obj -o xpicojpeg.o
-	#llc $(LLCOPS) picojpegtest.opt.bc -filetype obj -o xpicojpegtest.o
-	#llc $(LLCOPS) uart.opt.bc -filetype obj -o xuart.o
-	llvm-link embedded.bc picojpegtest.bc uart.bc -o xpicojpegtest.raw.bc
-	opt $(OOPS) xpicojpegtest.raw.bc -o xpicojpegtest.bc
-	llc $(LLCOPS) xpicojpegtest.bc -filetype obj -o xpicojpegtest.o
-	#$(ARMGNU)-ld -T memmap vectors.o putget.o xembedded.o xpicojpeg.o xpicojpegtest.o xuart.o -o xpicojpegtest.elf
-	$(ARMGNU)-ld -T memmap vectors.o putget.o xpicojpegtest.o xpicojpeg.o -o xpicojpegtest.elf
-	$(ARMGNU)-objdump -D xpicojpegtest.elf > xpicojpegtest.list
-	$(ARMGNU)-objcopy xpicojpegtest.elf -O binary xpicojpegtest.bin 
 
 

@@ -22,7 +22,94 @@ have the lsbit set.  I have a few places where I trap for this waiting
 for a compiler to generate those instructions.  I removed the trap and
 the program worked fine.
 
-At the moment the llvm optimized build does not work with thumbulator
-I believe this is a thumbulator problem as it compiles and runs on
-real ARM hardware but so far not an apples to apples comparison.  I am
-using llvm 3.3 (seem my build_gcc repo, the build_clang script).
+The llvm optimized code was doing something with .data and I dont mess
+with .data so it was failing until I got the linker script and such just
+right.
+
+So this is a comparison between llvm and gcc llvm is using less
+instructions, more read cycles, fewer write cycles.  Overall fewer
+instructions but more memory cycles than gcc.
+
+Using -O3 optimizations on gcc it uses less everything, instructions,
+reads, writes.
+
+./thumbulator picojpeg/lpicojpegtest.bin
+00D3C870
+
+
+swi 0x01
+
+
+instructions 26254542
+fetches      26254542
+reads        12803264
+writes       7501769
+memcycles    46559575
+systick_ints 0
+
+
+-O2 optimizations:
+
+./thumbulator picojpeg/gpicojpegtest.bin
+00D3C870
+
+
+swi 0x01
+
+
+instructions 26612966
+fetches      26612966
+reads        9707188
+writes       6069420
+memcycles    42389574
+systick_ints 0
+
+
+-O3 optmizations:
+
+../thumbulator gpicojpegtest.bin
+00D3C870
+
+
+swi 0x01
+
+
+instructions 24468869
+fetches      24468869
+reads        6636744
+writes       3174541
+memcycles    34280154
+systick_ints 0
+
+
+
+
+
+
+
+
+
+
+clang --version
+clang version 3.3 (branches/release_33 185429)
+
+llc  --version
+LLVM (http://llvm.org/):
+  LLVM version 3.3
+  Optimized build with assertions.
+
+arm-none-eabi-gcc --version
+
+arm-none-eabi-gcc (GCC) 4.7.2
+Copyright (C) 2012 Free Software Foundation, Inc.
+This is free software; see the source for copying conditions.  There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+arm-none-eabi-as --version
+
+GNU assembler (GNU Binutils) 2.22
+Copyright 2011 Free Software Foundation, Inc.
+This program is free software; you may redistribute it under the terms of
+the GNU General Public License version 3 or later.
+This program has absolutely no warranty.
+This assembler was configured for a target of `arm-none-eabi'.

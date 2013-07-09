@@ -311,7 +311,14 @@ unsigned int read_register ( unsigned int reg )
 if(DBUG) fprintf(stderr,"read_register(%u)=",reg);
 if(DBUGREG) fprintf(stderr,"read_register(%u)=",reg);
     data=reg_norm[reg];
-    if(reg==15) data&=~1;
+    if(reg==15)
+    {
+        if(data&1)
+        {
+            fprintf(stderr,"pc has lsbit set 0x%08X\n",data);
+        }
+        data&=~1;
+    }
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
 if(DBUGREG) fprintf(stderr,"0x%08X\n",data);
     return(data);
@@ -465,7 +472,7 @@ int execute ( void )
     inst=fetch16(pc-2);
     pc+=2;
     write_register(15,pc);
-if(DISS) fprintf(stderr,"0x%08X: 0x%04X ",(pc-4),inst);
+if(DISS) fprintf(stderr,"--- 0x%08X: 0x%04X ",(pc-4),inst);
 
 if(output_vcd)
 {
@@ -963,6 +970,7 @@ if(DISS) fprintf(stderr,"blx r%u\n",rm);
         if(rc&1)
         {
             write_register(14,(pc-2)|1);
+            rc&=~1;
             write_register(15,rc);
             return(0);
         }
@@ -983,6 +991,7 @@ if(DISS) fprintf(stderr,"bx r%u\n",rm);
 //fprintf(stderr,"bx r%u 0x%X 0x%X\n",rm,rc,pc);
         if(rc&1)
         {
+            rc&=~1;
             write_register(15,rc);
             return(0);
         }
@@ -1455,7 +1464,7 @@ if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         if((rd==14)&&(rm==15))
         {
             //printf("mov lr,pc warning 0x%08X\n",pc-2);
-            rc|=1;
+            //rc|=1;
         }
         if(rd==15)
         {
@@ -1571,6 +1580,7 @@ if(DISS)
             {
                 fprintf(stderr,"pop {rc} with an ARM address pc 0x%08X popped 0x%08X\n",pc,rc);
                 //exit(1);
+                rc&=~1;
             }
             rc+=2;
             write_register(15,rc);
@@ -2061,9 +2071,15 @@ int reset ( void )
     handler_mode=0;
     cpsr=0;
 
-    reg_norm[13]=fetch32(0x00000000); //cortex-m3
+    reg_norm[13]=fetch32(0x00000000); //cortex-m
     reg_norm[14]=0xFFFFFFFF;
-    reg_norm[15]=fetch32(0x00000004); //cortex-m3
+    reg_norm[15]=fetch32(0x00000004); //cortex-m
+    if((reg_norm[15]&1)==0)
+    {
+        fprintf(stderr,"reset vector with an ARM address 0x%08X\n",reg_norm[15]);
+        exit(1);
+    }
+    reg_norm[15]&=~1;
     reg_norm[15]+=2;
 
     instructions=0;
