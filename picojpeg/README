@@ -1,0 +1,21 @@
+
+I have had some luck using open source software to test processors.  In
+this case the picojpeg project actually did help me find a couple of
+things with thumbulator.
+
+The llvm toolchain uses mov lr,pc which on the surface is a bad thing
+if you want to use that lr as a return address for example because
+the program counter does not have the lsbit set, but the link register
+should contain the lsbit set if the return address is a thumb addres.
+Now the llvm tools also generated a push with lr and pop with pc
+instead of popping what was pushed as the lr into something (r0-r7) and
+then bx to that register.
+
+Likewise gcc had a situation where the program counter was a destination
+without the lsbit being set.  This is okay as the pc doesnt need to
+have the lsbit set.  I have a few places where I trap for this waiting
+for a compiler to generate those instructions.  I removed the trap and
+the program worked fine.
+
+At the moment the llvm optimized build does not work with thumbulator
+I dont know if that is thumbulator or llvm.  I am using llvm 3.3
