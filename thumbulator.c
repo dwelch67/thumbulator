@@ -1452,6 +1452,11 @@ if(DISS) fprintf(stderr,"movs r%u,r%u\n",rd,rn);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
+        if((rd==14)&&(rm==15))
+        {
+            //printf("mov lr,pc\n");
+            rc|=1;
+        }
         if(rd==15)
         {
             //if((rc&1)==0)
@@ -1622,7 +1627,16 @@ if(DISS)
         }
         if(inst&0x100)
         {
-            write32(rd,read_register(14));
+            rc=read_register(14);
+            write32(rd,rc); //read_register(14));
+
+            if((rc&1)==0)
+            {
+                fprintf(stderr,"push {lr} with an ARM address pc 0x%08X popped 0x%08X\n",pc,rc);
+//                exit(1);
+            }
+
+
         }
         write_register(13,sp);
         return(0);
