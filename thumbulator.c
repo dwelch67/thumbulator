@@ -1454,7 +1454,7 @@ if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
         if((rd==14)&&(rm==15))
         {
-            //printf("mov lr,pc\n");
+            //printf("mov lr,pc warning 0x%08X\n",pc-2);
             rc|=1;
         }
         if(rd==15)
@@ -1570,7 +1570,7 @@ if(DISS)
             if((rc&1)==0)
             {
                 fprintf(stderr,"pop {rc} with an ARM address pc 0x%08X popped 0x%08X\n",pc,rc);
-                exit(1);
+                //exit(1);
             }
             rc+=2;
             write_register(15,rc);

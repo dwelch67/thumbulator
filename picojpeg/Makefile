@@ -1,5 +1,5 @@
 
-all : host gpicojpegtest.bin lpicojpegtest.bin
+all : host gpicojpegtest.bin lpicojpegtest.bin xpicojpegtest.bin
 
 host : host.c picojpeg.c picojpeg.h jpegdata.h
 	gcc -O2 host.c picojpeg.c -o host
@@ -34,7 +34,8 @@ AOPS = --warn --fatal-warnings
 
 OOPS = -std-compile-opts -strip-debug -disable-simplify-libcalls
 LOPS = -Wall -m32 -emit-llvm -disable-simplify-libcalls
-LLCOPS = -march=thumb -disable-simplify-libcalls 
+LLCOPS = -march=thumb -disable-simplify-libcalls  -mattr=v5t
+
 
 
 xall : gpicojpegtest.bin lpicojpegtest.bin
@@ -80,9 +81,28 @@ lpicojpegtest.bin : memmap vectors.o putget.o embedded.bc picojpegtest.bc picojp
 	opt $(OOPS) lpicojpegtest.raw.bc -o lpicojpegtest.bc
 	#llc $(LLCOPS) lpicojpegtest.bc -o lpicojpegtest.s
 	#$(ARMGNU)-as lpicojpegtest.s -o lpicojpegtest.o
-	llc $(LLCOPS) lpicojpegtest.raw.bc -filetype obj -o lpicojpegtest.o
+	llc $(LLCOPS) lpicojpegtest.bc -filetype obj -o lpicojpegtest.o
+	#llc $(LLCOPS) lpicojpegtest.raw.bc -filetype obj -o lpicojpegtest.o
 	$(ARMGNU)-ld -T memmap vectors.o putget.o lpicojpegtest.o -o lpicojpegtest.elf
 	$(ARMGNU)-objdump -D lpicojpegtest.elf > lpicojpegtest.list
 	$(ARMGNU)-objcopy lpicojpegtest.elf -O binary lpicojpegtest.bin 
+
+
+xpicojpegtest.bin : memmap vectors.o putget.o embedded.bc picojpegtest.bc picojpeg.bc uart.bc
+	#opt $(OOPS) embedded.bc -o embedded.opt.bc
+	#opt $(OOPS) picojpeg.bc -o picojpeg.opt.bc
+	#opt $(OOPS) picojpegtest.bc -o picojpegtest.opt.bc
+	#opt $(OOPS) uart.bc -o uart.opt.bc
+	#llc $(LLCOPS) embedded.opt.bc -filetype obj -o xembedded.o
+	llc $(LLCOPS) picojpeg.bc -filetype obj -o xpicojpeg.o
+	#llc $(LLCOPS) picojpegtest.opt.bc -filetype obj -o xpicojpegtest.o
+	#llc $(LLCOPS) uart.opt.bc -filetype obj -o xuart.o
+	llvm-link embedded.bc picojpegtest.bc uart.bc -o xpicojpegtest.raw.bc
+	opt $(OOPS) xpicojpegtest.raw.bc -o xpicojpegtest.bc
+	llc $(LLCOPS) xpicojpegtest.bc -filetype obj -o xpicojpegtest.o
+	#$(ARMGNU)-ld -T memmap vectors.o putget.o xembedded.o xpicojpeg.o xpicojpegtest.o xuart.o -o xpicojpegtest.elf
+	$(ARMGNU)-ld -T memmap vectors.o putget.o xpicojpegtest.o xpicojpeg.o -o xpicojpegtest.elf
+	$(ARMGNU)-objdump -D xpicojpegtest.elf > xpicojpegtest.list
+	$(ARMGNU)-objcopy xpicojpegtest.elf -O binary xpicojpegtest.bin 
 
 
