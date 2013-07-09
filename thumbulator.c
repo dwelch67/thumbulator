@@ -909,19 +909,21 @@ if(DISS) fprintf(stderr,"bics r%u,r%u\n",rd,rm);
         if((inst&0x1800)==0x1000) //H=b10
         {
 if(DISS) fprintf(stderr,"\n");
-            halfadd=inst;
+            rb=inst&((1<<11)-1);
+            if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
+            rb<<=12;
+            rb+=pc;
+            write_register(14,rb);
             return(0);
         }
         else
         if((inst&0x1800)==0x1800) //H=b11
         {
             //branch to thumb
-            rb=halfadd&((1<<11)-1);
-            if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
-            rb<<=11;
-            rb|=inst&((1<<11)-1);
-            rb<<=1;
-            rb+=pc;
+            rb=read_register(14);
+            rb+=(inst&((1<<11)-1))<<1;;
+            rb+=2;
+
 if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
             write_register(14,(pc-2)|1);
             write_register(15,rb);
@@ -933,12 +935,13 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
             //fprintf(stderr,"cannot branch to arm 0x%08X 0x%04X\n",pc,inst);
             //return(1);
             //branch to thumb
-            rb=halfadd&((1<<11)-1);
-            if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
-            rb<<=11;
-            rb|=inst&((1<<11)-1);
-            rb<<=1;
-            rb+=pc;
+            rb=read_register(14);
+            rb+=(inst&((1<<11)-1))<<1;;
+            rb&=0xFFFFFFFC;
+            rb+=2;
+
+printf("hello\n");
+
 if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
             write_register(14,(pc-2)|1);
             write_register(15,rb);
@@ -1451,11 +1454,11 @@ if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
         if(rd==15)
         {
-            if((rc&1)==0)
-            {
-                fprintf(stderr,"cpy or mov pc,... produced an ARM address 0x%08X 0x%08X\n",pc,rc);
-                exit(1);
-            }
+            //if((rc&1)==0)
+            //{
+                //fprintf(stderr,"cpy or mov pc,... produced an ARM address 0x%08X 0x%08X\n",pc,rc);
+                //exit(1);
+            //}
             rc&=~1; //write_register may do this as well
             rc+=2; //The program counter is special
         }
