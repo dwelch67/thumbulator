@@ -12,7 +12,7 @@ unsigned int read_register ( unsigned int );
 #define DBUGRAMW    0
 #define DBUGREG     0
 #define DBUG        0
-#define DISS        0
+#define DISS        1
 
 #define ROMADDMASK 0xFFFFF
 #define RAMADDMASK 0xFFFFF
@@ -400,6 +400,8 @@ int execute ( void )
     unsigned int ra,rb,rc;
     unsigned int rm,rd,rn,rs;
     unsigned int op;
+
+//if(fetches>400000) return(1);
 
     pc=read_register(15);
 
@@ -1143,7 +1145,8 @@ if(DISS)
                 sp+=4;
             }
         }
-        write_register(rn,sp);
+        //there is a write back exception.
+        if((inst&(1<<rn))==0) write_register(rn,sp);
         return(0);
     }
 
