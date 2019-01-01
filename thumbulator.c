@@ -397,6 +397,40 @@ void do_vflag_bit ( unsigned int x )
 {
    if(x) cpsr|=CPSR_V; else cpsr&=~CPSR_V;
 }
+
+
+// -----------------------------------------------
+// Register Stack/Unstack for exception support
+// -----------------------------------------------
+
+// Stack pointer and PC as arguments, return new sp value.
+unsigned int exception_stack(unsigned int sp, unsigned int pc)
+{
+  sp-=4; write32(sp,cpsr);
+  sp-=4; write32(sp,pc);
+  sp-=4; write32(sp,read_register(reg_lr));
+  sp-=4; write32(sp,read_register(reg_ip));
+  sp-=4; write32(sp,read_register(reg_r3));
+  sp-=4; write32(sp,read_register(reg_r2));
+  sp-=4; write32(sp,read_register(reg_r1));
+  sp-=4; write32(sp,read_register(reg_r0));
+  return(sp);  
+}
+
+// Stack pointer as an arg, update the PC with the saved value.
+unsigned int exception_unstack(unsigned int sp, unsigned int *pc)
+{
+  write_register(reg_r0,read32(sp)); sp+=4;
+  write_register(reg_r1,read32(sp)); sp+=4;
+  write_register(reg_r2,read32(sp)); sp+=4;
+  write_register(reg_r3,read32(sp)); sp+=4;
+  write_register(reg_ip,read32(sp)); sp+=4;
+  write_register(reg_lr,read32(sp)); sp+=4;
+  *pc=read32(sp); sp+=4;
+  cpsr=read32(sp); sp+=4;
+  return(sp);
+}
+
 //-------------------------------------------------------------------
 //-------------------------------------------------------------------
 //-------------------------------------------------------------------
@@ -422,16 +456,9 @@ int execute ( void )
 
             handler_mode = 0;
 //fprintf(stderr,"--leaving handler\n");
-            sp=read_register(13);
-            write_register(0,read32(sp)); sp+=4;
-            write_register(1,read32(sp)); sp+=4;
-            write_register(2,read32(sp)); sp+=4;
-            write_register(3,read32(sp)); sp+=4;
-            write_register(12,read32(sp)); sp+=4;
-            write_register(14,read32(sp)); sp+=4;
-            pc=read32(sp); sp+=4;
-            cpsr=read32(sp); sp+=4;
-            write_register(13,sp);
+          sp=read_register(reg_sp);
+          sp = exception_unstack(sp, &pc);            
+          write_register(reg_sp,sp);
         }
     }
     if(systick_ctrl&1)
@@ -457,16 +484,10 @@ int execute ( void )
 
                 systick_ints++;
 //fprintf(stderr,"--- enter systick handler\n");
-                sp=read_register(13);
-                sp-=4; write32(sp,cpsr);
-                sp-=4; write32(sp,pc);
-                sp-=4; write32(sp,read_register(14));
-                sp-=4; write32(sp,read_register(12));
-                sp-=4; write32(sp,read_register(3));
-                sp-=4; write32(sp,read_register(2));
-                sp-=4; write32(sp,read_register(1));
-                sp-=4; write32(sp,read_register(0));
-                write_register(13,sp);
+                sp=read_register(reg_sp);
+                sp = exception_stack(sp, pc); // Correct for order of operations.
+
+                write_register(reg_sp,sp);
                 pc=fetch32(0x0000003C); //systick vector
                 pc+=2;
                 //write_register(14,0xFFFFFF00);
