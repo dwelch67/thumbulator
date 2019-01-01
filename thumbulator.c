@@ -2,10 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
-unsigned int read32 ( unsigned int );
+uint32_t read32 ( uint32_t );
 
-unsigned int read_register ( unsigned int );
+uint32_t read_register ( uint32_t );
 
 #define DBUGFETCH   0
 #define DBUGRAM     0
@@ -33,15 +34,16 @@ unsigned int vcdcount;
 unsigned int output_vcd;
 FILE *fpvcd;
 
-unsigned int systick_ctrl;
-unsigned int systick_reload;
-unsigned int systick_count;
-unsigned int systick_calibrate;
+// Systick Registers
+uint32_t systick_ctrl;
+uint32_t systick_reload;
+uint32_t systick_count;
+uint32_t systick_calibrate;
 
-unsigned int halfadd;
-unsigned int cpsr;
+uint32_t halfadd;
+uint32_t cpsr;
 unsigned int handler_mode;
-unsigned int reg_norm[16]; //normal execution mode, do not have a thread mode
+uint32_t reg_norm[16]; //normal execution mode, do not have a thread mode
 
 unsigned long instructions;
 unsigned long fetches;
@@ -72,9 +74,9 @@ void dump_counters ( void )
     printf("systick_ints %lu\n",systick_ints);
 }
 //-------------------------------------------------------------------
-unsigned int fetch16 ( unsigned int addr )
+uint32_t fetch16 ( uint32_t addr )
 {
-    unsigned int data;
+    uint32_t data;
 
     fetches++;
 
@@ -108,9 +110,9 @@ if(DBUG) fprintf(stderr,"0x%04X\n",data);
     exit(1);
 }
 //-------------------------------------------------------------------
-unsigned int fetch32 ( unsigned int addr )
+uint32_t fetch32 ( uint32_t addr )
 {
-    unsigned int data;
+    uint32_t data;
 
 if(DBUGFETCH) fprintf(stderr,"fetch32(0x%08X)=",addr);
 if(DBUG) fprintf(stderr,"fetch32(0x%08X)=",addr);
@@ -140,7 +142,7 @@ if(DBUG) fprintf(stderr,"0x%08X\n",data);
     exit(1);
 }
 //-------------------------------------------------------------------
-void write16 ( unsigned int addr, unsigned int data )
+void write16 ( uint32_t addr, uint32_t data )
 {
 
     writes++;
@@ -160,7 +162,7 @@ if(DBUGRAM) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
     exit(1);
 }
 //-------------------------------------------------------------------
-void write32 ( unsigned int addr, unsigned int data )
+void write32 ( uint32_t addr, uint32_t data )
 {
 if(DBUG) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
     switch(addr&0xF0000000)
@@ -180,7 +182,7 @@ fflush(stdout);
 
                 case 0xE000E010:
                 {
-                    unsigned int old;
+                    uint32_t old;
 
                     old=systick_ctrl;
                     systick_ctrl = data&0x00010007;
@@ -237,9 +239,9 @@ if(DBUGRAMW) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
     exit(1);
 }
 //-----------------------------------------------------------------
-unsigned int read16 ( unsigned int addr )
+uint32_t read16 ( uint32_t addr )
 {
-    unsigned int data;
+    uint32_t data;
 
     reads++;
 
@@ -265,9 +267,9 @@ if(DBUGRAM) fprintf(stderr,"0x%04X\n",data);
     exit(1);
 }
 //-------------------------------------------------------------------
-unsigned int read32 ( unsigned int addr )
+uint32_t read32 ( uint32_t addr )
 {
-    unsigned int data;
+    uint32_t data;
 
 if(DBUG) fprintf(stderr,"read32(0x%08X)=",addr);
     switch(addr&0xF0000000)
@@ -276,7 +278,7 @@ if(DBUG) fprintf(stderr,"read32(0x%08X)=",addr);
         case 0x40000000: //RAM
 if(DBUGRAMW) fprintf(stderr,"read32(0x%08X)=",addr);
             data =read16(addr+0);
-            data|=((unsigned int)read16(addr+2))<<16;
+            data|=((uint32_t)read16(addr+2))<<16;
 if(DBUG) fprintf(stderr,"0x%08X\n",data);
 if(DBUGRAMW) fprintf(stderr,"0x%08X\n",data);
             return(data);
@@ -312,9 +314,9 @@ if(DBUGRAMW) fprintf(stderr,"0x%08X\n",data);
     exit(1);
 }
 //-------------------------------------------------------------------
-unsigned int read_register ( unsigned int reg )
+uint32_t read_register ( uint32_t reg )
 {
-    unsigned int data;
+    uint32_t data;
 
     reg&=0xF;
 if(DBUG) fprintf(stderr,"read_register(%u)=",reg);
@@ -333,7 +335,7 @@ if(DBUGREG) fprintf(stderr,"0x%08X\n",data);
     return(data);
 }
 //-------------------------------------------------------------------
-void write_register ( unsigned int reg, unsigned int data )
+void write_register ( uint32_t reg, uint32_t data )
 {
     reg&=0xF;
 if(DBUG) fprintf(stderr,"write_register(%u,0x%08X)\n",reg,data);
@@ -354,19 +356,19 @@ if(output_vcd)
 
 }
 //-------------------------------------------------------------------
-void do_zflag ( unsigned int x )
+void do_zflag ( uint32_t x )
 {
     if(x==0) cpsr|=CPSR_Z; else cpsr&=~CPSR_Z;
 }
 //-------------------------------------------------------------------
-void do_nflag ( unsigned int x )
+void do_nflag ( uint32_t x )
 {
     if(x&0x80000000) cpsr|=CPSR_N; else cpsr&=~CPSR_N;
 }
 //-------------------------------------------------------------------
-void do_cflag ( unsigned int a, unsigned int b, unsigned int c )
+void do_cflag ( uint32_t a, uint32_t b, uint32_t c )
 {
-    unsigned int rc;
+    uint32_t rc;
 
     cpsr&=~CPSR_C;
     rc=(a&0x7FFFFFFF)+(b&0x7FFFFFFF)+c; //carry in
@@ -374,10 +376,10 @@ void do_cflag ( unsigned int a, unsigned int b, unsigned int c )
     if(rc&2) cpsr|=CPSR_C;
 }
 //-------------------------------------------------------------------
-void do_vflag ( unsigned int a, unsigned int b, unsigned int c )
+void do_vflag ( uint32_t a, uint32_t b, uint32_t c )
 {
-    unsigned int rc;
-    unsigned int rd;
+    uint32_t rc;
+    uint32_t rd;
 
     cpsr&=~CPSR_V;
     rc=(a&0x7FFFFFFF)+(b&0x7FFFFFFF)+c; //carry in
@@ -388,12 +390,12 @@ void do_vflag ( unsigned int a, unsigned int b, unsigned int c )
     if(rc) cpsr|=CPSR_V;
 }
 //-------------------------------------------------------------------
-void do_cflag_bit ( unsigned int x )
+void do_cflag_bit ( uint32_t x )
 {
    if(x) cpsr|=CPSR_C; else cpsr&=~CPSR_C;
 }
 //-------------------------------------------------------------------
-void do_vflag_bit ( unsigned int x )
+void do_vflag_bit ( uint32_t x )
 {
    if(x) cpsr|=CPSR_V; else cpsr&=~CPSR_V;
 }
@@ -404,7 +406,7 @@ void do_vflag_bit ( unsigned int x )
 // -----------------------------------------------
 
 // Stack pointer and PC as arguments, return new sp value.
-unsigned int exception_stack(unsigned int sp, unsigned int pc)
+uint32_t exception_stack(uint32_t sp, uint32_t pc)
 {
   sp-=4; write32(sp,cpsr);
   sp-=4; write32(sp,pc);
@@ -418,7 +420,7 @@ unsigned int exception_stack(unsigned int sp, unsigned int pc)
 }
 
 // Stack pointer as an arg, update the PC with the saved value.
-unsigned int exception_unstack(unsigned int sp, unsigned int *pc)
+uint32_t exception_unstack(uint32_t sp, uint32_t *pc)
 {
   write_register(reg_r0,read32(sp)); sp+=4;
   write_register(reg_r1,read32(sp)); sp+=4;
@@ -436,13 +438,13 @@ unsigned int exception_unstack(unsigned int sp, unsigned int *pc)
 //-------------------------------------------------------------------
 int execute ( void )
 {
-    unsigned int pc;
-    unsigned int sp;
-    unsigned int inst;
+    uint32_t pc;
+    uint32_t sp;
+    uint32_t inst;
 
-    unsigned int ra,rb,rc;
-    unsigned int rm,rd,rn,rs;
-    unsigned int op;
+    uint32_t ra,rb,rc;
+    uint32_t rm,rd,rn,rs;
+    uint32_t op;
 
 //if(fetches>400000) return(1);
 
@@ -452,7 +454,7 @@ int execute ( void )
     {
         if((pc&0xF0000000)==0xF0000000)
         {
-            unsigned int sp;
+            uint32_t sp;
 
             handler_mode = 0;
 //fprintf(stderr,"--leaving handler\n");
@@ -480,7 +482,7 @@ int execute ( void )
         {
             if(handler_mode==0)
             {
-                unsigned int sp;
+                uint32_t sp;
 
                 systick_ints++;
 //fprintf(stderr,"--- enter systick handler\n");
@@ -2142,7 +2144,7 @@ int main ( int argc, char *argv[] )
 {
     FILE *fp;
 
-    unsigned int ra;
+    uint32_t ra;
 
     if(argc<2)
     {
