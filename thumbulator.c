@@ -2009,11 +2009,11 @@ if(DISS) fprintf(stderr,"sub SP,#0x%02X\n",rb);
         return(0);
     }
 
-    //SWI
+    //SVC/SWI
     if((inst&0xFF00)==0xDF00)
     {
         rb=inst&0xFF;
-if(DISS) fprintf(stderr,"swi 0x%02X\n",rb);
+if(DISS) fprintf(stderr,"svc/swi 0x%02X\n",rb);
 
         if((inst&0xFF)==0xCC)
         {
@@ -2022,8 +2022,25 @@ if(DISS) fprintf(stderr,"swi 0x%02X\n",rb);
         }
         else
         {
-            fprintf(stderr,"\n\nswi 0x%02X\n",rb);
-            return(1);
+            // fprintf(stderr,"\n\nsvc/swi 0x%02X\n",rb);
+            
+            sp=read_register(reg_sp);
+            // Correct PC value so that it matches what we'd
+            // see on an actual Cortex-M.  
+            sp = exception_stack(sp, pc-2);
+            write_register(reg_sp, sp);
+
+            // An actual hander will dig through the stack for arguments 
+            // and leave its result in there. 
+            // svc_handler(sp); 
+            
+            sp=read_register(reg_sp);
+            sp = exception_unstack(sp, &pc);
+            write_register(reg_sp,sp);
+
+            pc += 2;  // Adjust for thumbulator.
+                        
+            return(0);
         }
     }
 
