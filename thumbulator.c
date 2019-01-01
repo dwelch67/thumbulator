@@ -49,7 +49,16 @@ unsigned long reads;
 unsigned long writes;
 unsigned long systick_ints;
 
-
+typedef enum
+{ 
+  reg_r0 = 0,
+  reg_r1 = 1,
+  reg_r2 = 2,
+  reg_r3 = 3,
+  reg_ip = 12, // Use gcc nomenclature
+  reg_sp = 13, 
+  reg_lr = 14,
+} e_regs; 
 
 //-------------------------------------------------------------------
 void dump_counters ( void )
