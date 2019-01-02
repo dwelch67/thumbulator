@@ -772,7 +772,7 @@ if(DISS) fprintf(stderr,"asrs r%u,r%u\n",rd,rs);
         switch(op)
         {
             case 0x0: //b eq  z set
-if(DISS) fprintf(stderr,"beq 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"beq 0x%08X\n",rb-2);
                 if(cpsr&CPSR_Z)
                 {
                     write_register(15,rb);
@@ -780,7 +780,7 @@ if(DISS) fprintf(stderr,"beq 0x%08X\n",rb-3);
                 return(0);
 
             case 0x1: //b ne  z clear
-if(DISS) fprintf(stderr,"bne 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bne 0x%08X\n",rb-2);
                 if(!(cpsr&CPSR_Z))
                 {
                     write_register(15,rb);
@@ -788,7 +788,7 @@ if(DISS) fprintf(stderr,"bne 0x%08X\n",rb-3);
                 return(0);
 
             case 0x2: //b cs c set
-if(DISS) fprintf(stderr,"bcs 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bcs 0x%08X\n",rb-2);
                 if(cpsr&CPSR_C)
                 {
                     write_register(15,rb);
@@ -796,7 +796,7 @@ if(DISS) fprintf(stderr,"bcs 0x%08X\n",rb-3);
                 return(0);
 
             case 0x3: //b cc c clear
-if(DISS) fprintf(stderr,"bcc 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bcc 0x%08X\n",rb-2);
                 if(!(cpsr&CPSR_C))
                 {
                     write_register(15,rb);
@@ -804,7 +804,7 @@ if(DISS) fprintf(stderr,"bcc 0x%08X\n",rb-3);
                 return(0);
 
             case 0x4: //b mi n set
-if(DISS) fprintf(stderr,"bmi 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bmi 0x%08X\n",rb-2);
                 if(cpsr&CPSR_N)
                 {
                     write_register(15,rb);
@@ -812,7 +812,7 @@ if(DISS) fprintf(stderr,"bmi 0x%08X\n",rb-3);
                 return(0);
 
             case 0x5: //b pl n clear
-if(DISS) fprintf(stderr,"bpl 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bpl 0x%08X\n",rb-2);
                 if(!(cpsr&CPSR_N))
                 {
                     write_register(15,rb);
@@ -821,7 +821,7 @@ if(DISS) fprintf(stderr,"bpl 0x%08X\n",rb-3);
 
 
             case 0x6: //b vs v set
-if(DISS) fprintf(stderr,"bvs 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bvs 0x%08X\n",rb-2);
                 if(cpsr&CPSR_V)
                 {
                     write_register(15,rb);
@@ -829,7 +829,7 @@ if(DISS) fprintf(stderr,"bvs 0x%08X\n",rb-3);
                 return(0);
 
             case 0x7: //b vc v clear
-if(DISS) fprintf(stderr,"bvc 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bvc 0x%08X\n",rb-2);
                 if(!(cpsr&CPSR_V))
                 {
                     write_register(15,rb);
@@ -838,7 +838,7 @@ if(DISS) fprintf(stderr,"bvc 0x%08X\n",rb-3);
 
 
             case 0x8: //b hi c set z clear
-if(DISS) fprintf(stderr,"bhi 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bhi 0x%08X\n",rb-2);
                 if((cpsr&CPSR_C)&&(!(cpsr&CPSR_Z)))
                 {
                     write_register(15,rb);
@@ -846,7 +846,7 @@ if(DISS) fprintf(stderr,"bhi 0x%08X\n",rb-3);
                 return(0);
 
             case 0x9: //b ls c clear or z set
-if(DISS) fprintf(stderr,"bls 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bls 0x%08X\n",rb-2);
                 if((cpsr&CPSR_Z)||(!(cpsr&CPSR_C)))
                 {
                     write_register(15,rb);
@@ -854,7 +854,7 @@ if(DISS) fprintf(stderr,"bls 0x%08X\n",rb-3);
                 return(0);
 
             case 0xA: //b ge N == V
-if(DISS) fprintf(stderr,"bge 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bge 0x%08X\n",rb-2);
                 ra=0;
                 if(  (cpsr&CPSR_N) &&  (cpsr&CPSR_V) ) ra++;
                 if((!(cpsr&CPSR_N))&&(!(cpsr&CPSR_V))) ra++;
@@ -865,7 +865,7 @@ if(DISS) fprintf(stderr,"bge 0x%08X\n",rb-3);
                 return(0);
 
             case 0xB: //b lt N != V
-if(DISS) fprintf(stderr,"blt 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"blt 0x%08X\n",rb-2);
                 ra=0;
                 if((!(cpsr&CPSR_N))&&(cpsr&CPSR_V)) ra++;
                 if((!(cpsr&CPSR_V))&&(cpsr&CPSR_N)) ra++;
@@ -876,7 +876,7 @@ if(DISS) fprintf(stderr,"blt 0x%08X\n",rb-3);
                 return(0);
 
             case 0xC: //b gt Z==0 and N == V
-if(DISS) fprintf(stderr,"bgt 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bgt 0x%08X\n",rb-2);
                 ra=0;
                 if(  (cpsr&CPSR_N) &&  (cpsr&CPSR_V) ) ra++;
                 if((!(cpsr&CPSR_N))&&(!(cpsr&CPSR_V))) ra++;
@@ -888,7 +888,7 @@ if(DISS) fprintf(stderr,"bgt 0x%08X\n",rb-3);
                 return(0);
 
             case 0xD: //b le Z==1 or N != V
-if(DISS) fprintf(stderr,"ble 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"ble 0x%08X\n",rb-2);
                 ra=0;
                 if((!(cpsr&CPSR_N))&&(cpsr&CPSR_V)) ra++;
                 if((!(cpsr&CPSR_V))&&(cpsr&CPSR_N)) ra++;
@@ -916,7 +916,7 @@ if(DISS) fprintf(stderr,"ble 0x%08X\n",rb-3);
         rb<<=1;
         rb+=pc;
         rb+=2;
-if(DISS) fprintf(stderr,"B 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"B 0x%08X\n",rb-2);
         write_register(15,rb);
         return(0);
     }
@@ -965,7 +965,7 @@ if(DISS) fprintf(stderr,"\n");
             rb+=(inst&((1<<11)-1))<<1;;
             rb+=2;
 
-if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-2);
             write_register(14,(pc-2)|1);
             write_register(15,rb);
             return(0);
@@ -983,7 +983,7 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
 
 printf("hello\n");
 
-if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-2);
             write_register(14,(pc-2)|1);
             write_register(15,rb);
             return(0);
