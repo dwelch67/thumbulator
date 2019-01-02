@@ -2108,6 +2108,14 @@ if(DISS) fprintf(stderr,"uxth r%u,r%u\n",rd,rm);
         return(0);
     }
 
+    // NOP - Compilers use this as padding.  
+    if((inst&0xFF00)==0xBF00)
+    {
+      if(DISS) fprintf(stderr,"nop\n");
+      return(0);
+    }  
+  
+
     fprintf(stderr,"invalid instruction 0x%08X 0x%04X\n",pc-4,inst);
     return(1);
 }
