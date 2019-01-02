@@ -949,7 +949,7 @@ if(DISS) fprintf(stderr,"bics r%u,r%u\n",rd,rm);
     {
         if((inst&0x1800)==0x1000) //H=b10
         {
-if(DISS) fprintf(stderr,"\n");
+if(DISS) fprintf(stderr,"bl (prep)\n");
             rb=inst&((1<<11)-1);
             if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
             rb<<=12;
