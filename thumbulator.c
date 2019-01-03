@@ -506,8 +506,21 @@ int execute ( void )
     inst=fetch16(pc-2);
     pc+=2;
     write_register(15,pc);
-if(DISS) fprintf(stderr,"--- 0x%08X: 0x%04X ",(pc-4),inst);
-
+    
+    // Check to see if its a 32-bit instruction, and if so,
+    // display the next word.  Arm V6-ARM, section A5.1
+    if(DISS) 
+    {
+      uint8_t topcode = (inst & 0xf800)>>8; // Top 5 bits
+      if ( topcode == 0xF8 || topcode == 0xF0 || topcode == 0xE8) {
+        uint16_t inst_top = fetch16(pc-2);
+        fprintf(stderr,"--- 0x%08X: 0x%04X %04X ",(pc-4),inst,inst_top);
+        }
+      else {
+        fprintf(stderr,"--- 0x%08X: 0x%04X ",(pc-4),inst);
+        }
+    }
+    
 if(output_vcd)
 {
     unsigned int vv;
