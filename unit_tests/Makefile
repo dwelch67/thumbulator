@@ -21,6 +21,7 @@ all: startup_gcc.c  axf
 
 axf: ${COMPILER}
 axf: ${COMPILER}/minimal.axf
+axf: ${COMPILER}/minimal-svc.axf
 
 #
 # The rule to clean out all the build products.
@@ -38,14 +39,19 @@ ${COMPILER}:
 ${COMPILER}/minimal.axf: ${COMPILER}/minimal.o
 ${COMPILER}/minimal.axf: ${COMPILER}/startup_${COMPILER}.o
 
-#
-# Source Code that allocates big chunks of RAM.
-# 
+${COMPILER}/minimal-svc.axf: ${COMPILER}/minimal-svc.o
+${COMPILER}/minimal-svc.axf: ${COMPILER}/syscall-testshims.o
+${COMPILER}/minimal-svc.axf: ${COMPILER}/startup_${COMPILER}.o
+
 
 # ${COMPILER}/dib.axf: ${ROOT}/driverlib/${COMPILER}/libdriver.a
 ${COMPILER}/minimal.axf: unittests.ld
 SCATTERgcc_minimal=unittests.ld
 ENTRY=ResetISR
+
+${COMPILER}/minimal-svc.axf: unittests.ld
+SCATTERgcc_minimal-svc=unittests.ld
+
 
 #
 # Include the automatically generated dependency files.
