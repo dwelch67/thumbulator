@@ -1,6 +1,6 @@
 
-thumbulator : thumbulator.c
-	gcc -o thumbulator -O2 -DSRAMBASE=0x40000000 thumbulator.c
+thumbulator : thumbulator.c svc_stdio.c
+	gcc -o thumbulator -O2 -DSRAMBASE=0x20000000 thumbulator.c svc_stdio.c
 
 clean :
 	rm -f thumbulator

@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#include "thumbulator_svc.h"
+
 uint32_t read32 ( uint32_t );
 
 uint32_t read_register ( uint32_t );
@@ -131,6 +133,7 @@ if(DBUG) fprintf(stderr,"fetch32(0x%08X)=",addr);
     switch(addr&0xF0000000)
     {
         case 0x00000000: //ROM
+            // Check for low addresses and apply special rules.
             if(addr<0x50)
             {
                 data=read32(addr);
@@ -2064,7 +2067,7 @@ if(diss) fprintf(stderr,"svc/swi 0x%02X\n",rb);
 
             // An actual hander will dig through the stack for arguments 
             // and leave its result in there. 
-            // svc_handler(sp); 
+            svc_handler(sp); 
             
             sp=read_register(reg_sp);
             sp = exception_unstack(sp, &pc);
@@ -2254,6 +2257,10 @@ int main ( int argc, char *argv[] )
     }
 
     memset(ram,0x00,sizeof(ram));
+    
+    // All emulator initialization is done.   Setup the SVC layer.  
+    svc_init();
+    
     run();
     if(output_vcd)
     {
