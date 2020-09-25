@@ -1182,8 +1182,8 @@ if(diss) fprintf(stderr,"cmps r%u,r%u\n",rn,rm);
     //CPS
     if((inst&0xFFE8)==0xB660)
     {
-if(diss) fprintf(stderr,"cps TODO\n");
-        return(1);
+if(diss) fprintf(stderr,"cps NOTSUPPORTED\n");
+        return(0);
     }
 
     //CPY copy high register
