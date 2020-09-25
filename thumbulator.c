@@ -37,6 +37,9 @@ unsigned short ram[RAMSIZE>>1];
 #define CPSR_V (1<<28)
 #define CPSR_Q (1<<27)
 
+#define CPSR_APSR (CPSR_N|CPSR_Z|CPSR_C|CPSR_V)
+
+
 unsigned int vcdcount;
 unsigned int output_vcd;
 FILE *fpvcd;
@@ -387,6 +390,34 @@ if(output_vcd)
 }
 
 }
+
+//-------------------------------------------------------------------
+// Special register encoding for MSR instruction.
+//-------------------------------------------------------------------
+uint32_t get_SYSm(int index) {
+  switch(index) {
+    case 0: // APSR 
+      return( cpsr & CPSR_APSR );
+    default:
+      fprintf(stderr,"Unsupported get_SYSm! %d\n",index);
+      exit(-1);
+      return(0);
+  }
+}
+
+
+void set_SYSm(int index, uint32_t val) {
+  switch(index) {
+    case 0: // APSR 
+      cpsr = (cpsr & ~(CPSR_APSR)) | (val & CPSR_APSR ) ;
+      return;
+    default:
+      fprintf(stderr,"Unsupported set_SYSm! %d\n",index);
+      exit(-1);
+      return;
+  }
+}
+
 //-------------------------------------------------------------------
 void do_zflag ( uint32_t x )
 {
@@ -562,7 +593,7 @@ int execute ( void )
     // Instruction Fetch
     inst=fetch16(pc-2);
     pc+=2;
-    write_register(15,pc);
+    write_register(reg_pc,pc);
     
     instructions++;
     
@@ -1578,6 +1609,29 @@ if(diss) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         write_register(rd,rc);
         return(0);
     }
+
+    // MRS 0xF800 | 0x07F0 op1 = 011111x ( 0x03e0 )
+    // 
+    if( ((inst&0xFFF0) == 0xF3e0) && ((inst2&0x5000) == 0) ) {
+        rd = (inst2>>8)&0xf;
+        uint32_t SYSm = inst2&0xff;
+        write_register(rd, get_SYSm(SYSm));
+        if(diss) fprintf(stderr,"mrs r%d = %x(SYS%d)\n",rd, get_SYSm(SYSm), SYSm);
+        pc +=2; // Advance over the consumed top half
+        write_register(reg_pc,pc);
+	      return(0);
+	  }
+
+    // MSR 
+    if( ((inst&0xFFF0) == 0xF380) && ((inst2&0x5000) == 0) ) {
+      rd = inst&0xf;
+      uint32_t SYSm = inst2&0xff;
+      if(diss) fprintf(stderr,"msr SYS%d = %x(r%d)\n",SYSm, read_register(rd), rd);
+      set_SYSm(SYSm, read_register(rd));
+      pc +=2; // Advance over the consumed top half
+      write_register(reg_pc,pc);
+      return(0);
+	   }
 
     //MUL
     if((inst&0xFFC0)==0x4340)
