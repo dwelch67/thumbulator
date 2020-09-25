@@ -67,6 +67,7 @@ typedef enum
   reg_ip = 12, // Use gcc nomenclature
   reg_sp = 13, 
   reg_lr = 14,
+  reg_pc = 15, 
 } e_regs; 
 
 //-------------------------------------------------------------------
@@ -493,6 +494,8 @@ int execute ( void )
     uint32_t pc;
     uint32_t sp;
     uint32_t inst;
+    uint32_t inst2; // Second half of a 32-bit instruction
+    
 
     uint32_t ra,rb,rc;
     uint32_t rm,rd,rn,rs;
@@ -560,6 +563,15 @@ int execute ( void )
     inst=fetch16(pc-2);
     pc+=2;
     write_register(15,pc);
+    
+    instructions++;
+    
+    // Check for a 32-bit instruction.   Not all of these are 
+    // defined.  See table A5-9 of the Arm-ARM
+    if ( (inst & 0xF800) == 0xF000  ) {
+        inst2=fetch16(pc-2);        
+    }
+
     // -----------------------------------------------
     // -----------------------------------------------
     
@@ -587,10 +599,6 @@ if(output_vcd)
     }
     fprintf(fpvcd," inst\n");
 }
-
-
-
-    instructions++;
 
     //ADC
     if((inst&0xFFC0)==0x4140)
@@ -1013,54 +1021,41 @@ if(diss) fprintf(stderr,"bics r%u,r%u\n",rd,rm);
         return(1);
     }
 
-    //BL/BLX(1)
-    if((inst&0xE000)==0xE000) //BL,BLX
+    // BL is a 32-bit instruction.
+    if( ((inst&0xF800)==0xF000) && ((inst2&0x5000) == 0x5000) ) //BL
     {
-        if((inst&0x1800)==0x1000) //H=b10
-        {
-if(diss) fprintf(stderr,"bl (prep)\n");
-            rb=inst&((1<<11)-1);
-            if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
-            rb<<=12;
-            rb+=pc;
-            write_register(14,rb);
-            return(0);
-        }
-        else
-        if((inst&0x1800)==0x1800) //H=b11
-        {
-            //branch to thumb
-            rb=read_register(14);
-            rb+=(inst&((1<<11)-1))<<1;;
-            rb+=2;
+      // Advance the program counter.   We already have both halves
+      // in-hand.  
+      pc+=2;
+      
+      // A6.7.13 Refers to J1 & J2
+      // Start by capturing the bottom 21 bits of offset, shift to 22.
+      uint32_t offset = ((inst & 0x3FF )<<12) | ((inst2&0x7FF)<<1);
 
-if(diss) fprintf(stderr,"bl 0x%08X\n",rb-2);
-            write_register(14,(pc-2)|1);
-            write_register(15,rb);
-            return(0);
-        }
-        else
-        if((inst&0x1800)==0x0800) //H=b01
-        {
-            //fprintf(stderr,"cannot branch to arm 0x%08X 0x%04X\n",pc,inst);
-            //return(1);
-            //branch to thumb
-            rb=read_register(14);
-            rb+=(inst&((1<<11)-1))<<1;;
-            rb&=0xFFFFFFFC;
-            rb+=2;
+      uint32_t sign = ( (inst&0x0400) != 0) ? 1 : 0; 
 
-printf("hello\n");
+      // I1 is bit #23 
+      uint32_t i1 = ( (inst2&0x2000) != 0) ? 1 : 0; 
+      i1 = ~(sign ^ i1) & 1 ;
 
-if(diss) fprintf(stderr,"bl 0x%08X\n",rb-2);
-            write_register(14,(pc-2)|1);
-            write_register(15,rb);
-            return(0);
+      offset |= i1<<23; // Install I1  
 
+      // I2 is bit #22 
+      uint32_t i2 = ( (inst2&0x0800) != 0) ? 1 : 0; 
+      i2 = ~(sign ^ i2) & 1;
 
+      offset |= i2<<22; // Install I2  
 
-        }
+      // We now have 22 bits of address, and we need the sign bits.
+      if ( sign ) offset |= 0xFF000000;
+      
+      if(diss) fprintf(stderr,"BL 0x%x\n",pc + offset - 2);
+
+      write_register(reg_lr,(pc-2)|1);
+      write_register(reg_pc,(pc + offset));
+      return(0);
     }
+    
 
     //BLX(2)
     if((inst&0xFF87)==0x4780)
