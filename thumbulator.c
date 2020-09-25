@@ -20,7 +20,7 @@ uint32_t read_register ( uint32_t );
 // Argument processing variables
 // -----------------------------------------------------------------
 int diss = 1; // Default to one.
-
+int display_counters = 1; 
 
 #define ROMADDMASK 0xFFFFF
 #define RAMADDMASK 0xFFFFF
@@ -74,13 +74,13 @@ typedef enum
 //-------------------------------------------------------------------
 void dump_counters ( void )
 {
-    printf("\n\n");
-    printf("instructions %lu\n",instructions);
-    printf("fetches      %lu\n",fetches);
-    printf("reads        %lu\n",reads);
-    printf("writes       %lu\n",writes);
-    printf("memcycles    %lu\n",fetches+reads+writes);
-    printf("systick_ints %lu\n",systick_ints);
+    fprintf(stderr,"\n\n");
+    fprintf(stderr,"instructions %lu\n",instructions);
+    fprintf(stderr,"fetches      %lu\n",fetches);
+    fprintf(stderr,"reads        %lu\n",reads);
+    fprintf(stderr,"writes       %lu\n",writes);
+    fprintf(stderr,"memcycles    %lu\n",fetches+reads+writes);
+    fprintf(stderr,"systick_ints %lu\n",systick_ints);
 }
 
 //-------------------------------------------------------------------
@@ -2196,7 +2196,9 @@ int run ( void )
         }
         if(execute()) break;
     }
-    dump_counters();
+    
+    if ( display_counters ) dump_counters();
+    
     return(0);
 }
 //-------------------------------------------------------------------
