@@ -10,19 +10,25 @@
 #include <stdbool.h> 
 #include <stdint.h> 
 
-volatile uint32_t counter;
+#include "syscall-testshims.h"
 
-extern int PutChar(int stream, uint8_t c);
+volatile uint32_t counter;
 
 const char message[] = "Hello!\n";
 
 int main() {
   
   // Emit the message via the system call, stream 1.
-  char *p = message;
+  char *p = (char *) message;
   while(*p) {    
-    PutChar(1,*p);
+    PutChar(*p,0);
     p++;
+  }
+  
+  // Echo Test. 
+  while(GetCharAvail(0) ) {
+    PutChar(0x41,0);
+    PutChar(GetChar(0),0);    
   }
   
   __asm("bkpt 0\r");
