@@ -2131,7 +2131,8 @@ if(diss) fprintf(stderr,"sub SP,#0x%02X\n",rb);
     if((inst&0xFF00)==0xDF00)
     {
         rb=inst&0xFF;
-if(diss) fprintf(stderr,"svc/swi 0x%02X\n",rb);
+
+if(diss) fprintf(stderr,"svc/swi 0x%02X ",rb);
 
         if((inst&0xFF)==0xCC)
         {
@@ -2148,9 +2149,33 @@ if(diss) fprintf(stderr,"svc/swi 0x%02X\n",rb);
             sp = exception_stack(sp, pc-2);
             write_register(reg_sp, sp);
 
+            if ( diss ) {
+              fprintf(stderr,"%08x: ", sp);
+              for ( int i = sp ; i < (sp + 16); i = i + 4) {
+                fprintf(stderr,"%08x ", fetch32(i));
+              }
+              fprintf(stderr,"\n");
+            }
+            // fprintf(stderr,"%08x: ", addr);
+
+            // for ( int i = addr; i < (addr + 0x20); i = i + 4) {
+            //  fprintf(stderr,"%08x ", fetch32(i));
+            //}
+            //fprintf(stderr,"\n");
+
+
             // An actual hander will dig through the stack for arguments 
             // and leave its result in there. 
             svc_handler(sp); 
+            
+            if(diss) {
+              fprintf(stderr,"---                    svc/swi out: ");
+              fprintf(stderr,"%08x: ", sp);
+              for ( int i = sp ; i < (sp + 16); i = i + 4) {
+                fprintf(stderr,"%08x ", fetch32(i));
+              }
+              fprintf(stderr,"\n");
+            }
             
             sp=read_register(reg_sp);
             sp = exception_unstack(sp, &pc);
