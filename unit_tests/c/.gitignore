@@ -1,0 +1,4 @@
+gcc/*.map
+gcc/*.o
+gcc/*.d
+gcc/*.axf
