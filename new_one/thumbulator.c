@@ -421,6 +421,7 @@ int execute ( void )
             write_register(12,read32(sp)); sp+=4;
             write_register(14,read32(sp)); sp+=4;
             pc=read32(sp); sp+=4;
+            pc&=(~1);
             cpsr=read32(sp); sp+=4;
             write_register(13,sp);
         }
@@ -450,7 +451,7 @@ int execute ( void )
 //fprintf(stderr,"--- enter systick handler\n");
                 sp=read_register(13);
                 sp-=4; write32(sp,cpsr);
-                sp-=4; write32(sp,pc); 
+                sp-=4; write32(sp,pc);
                 sp-=4; write32(sp,read_register(14));
                 sp-=4; write32(sp,read_register(12));
                 sp-=4; write32(sp,read_register(3));
@@ -459,6 +460,7 @@ int execute ( void )
                 sp-=4; write32(sp,read_register(0));
                 write_register(13,sp);
                 pc=fetch32(0x0000003C); //systick vector
+                pc&=(~1);
                 //write_register(14,0xFFFFFF00);
                 write_register(14,0xFFFFFFF9);
 
@@ -573,20 +575,20 @@ if(DISS) fprintf(stderr,"adds r%u,r%u,r%u\n",rd,rn,rm);
         if(((inst>>6)&3)==0)
         {
             //UNPREDICTABLE
-			//one is supposed to be a high register
+            //one is supposed to be a high register
         }
         rd=(inst>>0)&0x7;
         rd|=(inst>>4)&0x8;
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
         ra=read_register(rd);
-		if(rd==15) ra+=2;
+        if(rd==15) ra+=2;
         rb=read_register(rm);
-		if(rm==15) rb+=2;
+        if(rm==15) rb+=2;
         rc=ra+rb;
         //if(rd==15)
         //{
-			//add does not interwork 
+            //add does not interwork
         //}
 //fprintf(stderr,"0x%08X = 0x%08X + 0x%08X\n",rc,ra,rb);
         write_register(rd,rc);
@@ -601,7 +603,7 @@ if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
         rb<<=2;
 if(DISS) fprintf(stderr,"add r%u,PC,#0x%02X\n",rd,rb);
         ra=read_register(15);
-		ra+=2;
+        ra+=2;
         rc=(ra&(~3))+rb;
         write_register(rd,rc);
         return(0);
@@ -919,7 +921,7 @@ if(DISS) fprintf(stderr,"\n");
             if(rb&1<<10) rb|=(~((1<<11)-1)); //sign extend
             rb<<=12;
             rb+=pc;
-			rb+=2;
+            rb+=2;
             write_register(14,rb);
             return(0);
         }
@@ -939,7 +941,7 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb);
         if((inst&0x1800)==0x0800) //H=b01
         {
             fprintf(stderr,"cannot BLX to arm 0x%08X 0x%04X\n",pc-2,inst);
-			exit(1);
+            exit(1);
         }
     }
 
@@ -949,12 +951,12 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"blx r%u\n",rm);
         rc=read_register(rm);
-		if(rm==15)
-		{
+        if(rm==15)
+        {
             fprintf(stderr,"UNPREDICTABLE BLX PC 0x%08X 0x%04X\n",pc-2,inst);
-			exit(1);
-		}
-		
+            exit(1);
+        }
+
 //fprintf(stderr,"blx r%u 0x%X 0x%X\n",rm,rc,pc);
         if(rc&1)
         {
@@ -976,7 +978,7 @@ if(DISS) fprintf(stderr,"blx r%u\n",rm);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"bx r%u\n",rm);
         rc=read_register(rm);
-		if(rm==15) rc+=2;
+        if(rm==15) rc+=2;
 //fprintf(stderr,"bx r%u 0x%X 0x%X\n",rm,rc,pc);
         if(rc&1)
         {
@@ -1056,9 +1058,9 @@ if(DISS) fprintf(stderr,"cmps r%u,r%u\n",rn,rm);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"cmps r%u,r%u\n",rn,rm);
         ra=read_register(rn);
-		if(rn==15) ra+=2;
+        if(rn==15) ra+=2;
         rb=read_register(rm);
-		if(rm==15) rb+=2;
+        if(rm==15) rb+=2;
         rc=ra-rb;
         do_nflag(rc);
         do_zflag(rc);
@@ -1083,7 +1085,12 @@ if(DISS) fprintf(stderr,"cps TODO\n");
         rm=(inst>>3)&0x7; //mov handles the high registers
 if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
         rc=read_register(rm);
-		//if(rm==15) rc+=2; mov handles the high registers.
+        //if(rm==15) rc+=2; mov handles the high registers.
+		if(rm==15)
+		{
+			fprintf(stderr,"mov handles the high registers\n");
+			exit(1);
+		}
         write_register(rd,rc);
         return(0);
     }
@@ -1170,7 +1177,7 @@ if(DISS) fprintf(stderr,"ldr r%u,[r%u,r%u]\n",rd,rn,rm);
         rb<<=2;
 if(DISS) fprintf(stderr,"ldr r%u,[PC+#0x%X] ",rd,rb);
         ra=read_register(15);
-		ra+=2;
+        ra+=2;
         ra&=~3;
         rb+=ra;
 if(DISS) fprintf(stderr,";@ 0x%X\n",rb);
@@ -1306,9 +1313,9 @@ if(DISS) fprintf(stderr,"ldrsh r%u,[r%u,r%u]\n",rd,rn,rm);
         rb=(inst>>6)&0x1F;
 if(DISS)
 {
-	fprintf(stderr,"lsls r%u,r%u,#0x%X",rd,rm,rb);
-	if(rb==0) fprintf(stderr," ; mov r%u,r%u",rd,rm);
-	fprintf(stderr,"\n");
+    fprintf(stderr,"lsls r%u,r%u,#0x%X",rd,rm,rb);
+    if(rb==0) fprintf(stderr," ; mov r%u,r%u",rd,rm);
+    fprintf(stderr,"\n");
 }
         rc=read_register(rm);
         if(rb==0)
@@ -1455,10 +1462,10 @@ if(DISS) fprintf(stderr,"movs r%u,r%u\n",rd,rn);
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         rc=read_register(rm);
-		if(rm==15) rc+=2;
+        if(rm==15) rc+=2;
         if(rd==15)
         {
-			//mov does not interwork
+            //mov does not interwork
             rc&=~1; //write_register may do this as well
         }
         write_register(rd,rc);
@@ -2062,7 +2069,6 @@ int reset ( void )
         exit(1);
     }
     reg_norm[15]&=~1;
-    //reg_norm[15]+=2;
 
     instructions=0;
     fetches=0;
