@@ -586,11 +586,6 @@ if(DISS) fprintf(stderr,"add r%u,r%u\n",rd,rm);
         rb=read_register(rm);
         if(rm==15) rb+=2;
         rc=ra+rb;
-        //if(rd==15)
-        //{
-            //add does not interwork
-        //}
-//fprintf(stderr,"0x%08X = 0x%08X + 0x%08X\n",rc,ra,rb);
         write_register(rd,rc);
         return(0);
     }
@@ -977,8 +972,12 @@ if(DISS) fprintf(stderr,"blx r%u\n",rm);
     {
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"bx r%u\n",rm);
+		if(rm==15)
+		{
+            fprintf(stderr,"cannot BX to ARM 0x%08X 0x%04X\n",pc-2,inst);
+            exit(1);
+		}
         rc=read_register(rm);
-        if(rm==15) rc+=2;
 //fprintf(stderr,"bx r%u 0x%X 0x%X\n",rm,rc,pc);
         if(rc&1)
         {
@@ -989,7 +988,7 @@ if(DISS) fprintf(stderr,"bx r%u\n",rm);
         else
         {
             fprintf(stderr,"cannot BX to ARM 0x%08X 0x%04X\n",pc-2,inst);
-            return(1);
+            exit(1);
         }
     }
 
@@ -1085,12 +1084,6 @@ if(DISS) fprintf(stderr,"cps TODO\n");
         rm=(inst>>3)&0x7; //mov handles the high registers
 if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
         rc=read_register(rm);
-        //if(rm==15) rc+=2; mov handles the high registers.
-		if(rm==15)
-		{
-			fprintf(stderr,"mov handles the high registers\n");
-			exit(1);
-		}
         write_register(rd,rc);
         return(0);
     }
