@@ -972,11 +972,11 @@ if(DISS) fprintf(stderr,"blx r%u\n",rm);
     {
         rm=(inst>>3)&0xF;
 if(DISS) fprintf(stderr,"bx r%u\n",rm);
-		if(rm==15)
-		{
+        if(rm==15)
+        {
             fprintf(stderr,"cannot BX to ARM 0x%08X 0x%04X\n",pc-2,inst);
             exit(1);
-		}
+        }
         rc=read_register(rm);
 //fprintf(stderr,"bx r%u 0x%X 0x%X\n",rm,rc,pc);
         if(rc&1)
@@ -1075,18 +1075,18 @@ if(DISS) fprintf(stderr,"cps TODO\n");
         return(1);
     }
 
-    //CPY copy high register
-    if((inst&0xFFC0)==0x4600)
-    {
-        //same as mov except you can use both low registers
-        //going to let mov handle high registers
-        rd=(inst>>0)&0x7; //mov handles the high registers
-        rm=(inst>>3)&0x7; //mov handles the high registers
-if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
-        rc=read_register(rm);
-        write_register(rd,rc);
-        return(0);
-    }
+    ////CPY copy high register no flags
+    //if((inst&0xFFC0)==0x4600)
+    //{
+        ////same as mov except you can use both low registers
+        ////going to let mov handle high registers
+        //rd=(inst>>0)&0x7; //mov handles the high registers
+        //rm=(inst>>3)&0x7; //mov handles the high registers
+//if(DISS) fprintf(stderr,"cpy r%u,r%u\n",rd,rm);
+        //rc=read_register(rm);
+        //write_register(rd,rc);
+        //return(0);
+    //}
 
     //EOR
     if((inst&0xFFC0)==0x4040)
@@ -1447,7 +1447,7 @@ if(DISS) fprintf(stderr,"movs r%u,r%u\n",rd,rn);
         return(0);
     }
 
-    //MOV(3) high regisers no flags
+    //MOV(3) no flags (covers CPY)
     if((inst&0xFF00)==0x4600)
     {
         rd=(inst>>0)&0x7;
@@ -1459,7 +1459,11 @@ if(DISS) fprintf(stderr,"mov r%u,r%u\n",rd,rm);
         if(rd==15)
         {
             //mov does not interwork
-            rc&=~1; //write_register may do this as well
+            if((rc&1)==0)
+            {
+                fprintf(stderr,"mov does not interwork\n");
+                exit(1);
+            }
         }
         write_register(rd,rc);
         return(0);
