@@ -51,4 +51,16 @@ code to jump into a C program and go from there.  The blinker directory
 (in this project) is perhaps a place to use as a beginning point on an
 embedded program.
 
+Google
+  ARM DDI 0100E
+or
+  ARM DDI 0100I
+
+https://www.scss.tcd.ie/~waldroj/3d1/arm_arm.pdf
+http://morrow.ece.wisc.edu/ECE353/arm_reference/ddi0100e_arm_arm.pdf
+http://reds.heig-vd.ch/share/cours/aro/ARM_Thumb_instructions.pdf
+They have a rev B here...Which was the blue covered one in print.
+http://www.home.marutan.net/arcemdocs/
+https://www.intel.com/content/dam/www/programmable/us/en/pdfs/literature/third-party/archives/ddi0100e_arm_arm.pdf
+https://www.cs.miami.edu/~burt/learning/Csc521.141/Documents/arm_arm.pdf
 

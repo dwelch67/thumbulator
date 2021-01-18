@@ -7,12 +7,21 @@ unsigned int read32 ( unsigned int );
 
 unsigned int read_register ( unsigned int );
 
-#define DBUGFETCH   0
-#define DBUGRAM     0
-#define DBUGRAMW    0
-#define DBUGREG     0
-#define DBUG        0
-#define DISS        1
+//#define DBUGFETCH   0
+//#define DBUGRAM     0
+//#define DBUGRAMW    0
+//#define DBUGREG     0
+//#define DBUG        0
+//#define DISS        1
+
+unsigned int DBUGFETCH =  0;
+unsigned int DBUGRAM   =  0;
+unsigned int DBUGRAMW  =  0;
+unsigned int DBUGREG   =  0;
+unsigned int DBUG      =  0;
+unsigned int DISS      =  0;
+
+
 
 #define ROMADDMASK 0xFFFFF
 #define RAMADDMASK 0xFFFFF
@@ -918,6 +927,15 @@ if(DISS) fprintf(stderr,"\n");
             rb+=pc;
             rb+=2;
             write_register(14,rb);
+			//read_register(15);
+			//fetch16();
+			rc=pc&ROMADDMASK;
+			rd=rom[rc>>1];	
+			if((rd&0xF800)!=0xF800)
+			{
+				fprintf(stderr,"0x%08X 0x%04X 0x%04X thumb2 not supported\n",pc-2,inst,rd);
+				exit(1);
+			}
             return(0);
         }
         else
@@ -932,12 +950,12 @@ if(DISS) fprintf(stderr,"bl 0x%08X\n",rb);
             write_register(15,rb);
             return(0);
         }
-        else
-        if((inst&0x1800)==0x0800) //H=b01
-        {
-            fprintf(stderr,"cannot BLX to arm 0x%08X 0x%04X\n",pc-2,inst);
-            exit(1);
-        }
+        //else
+        //if((inst&0x1800)==0x0800) //H=b01
+        //{
+            //fprintf(stderr,"cannot BLX to arm 0x%08X 0x%04X\n",pc-2,inst);
+            //exit(1);
+        //}
     }
 
     //BLX(2)
@@ -2106,6 +2124,9 @@ int main ( int argc, char *argv[] )
     for(ra=2;ra<argc;ra++)
     {
         if(strcmp(argv[ra],"--vcd")==0) output_vcd=1;
+        if(strcmp(argv[ra],"--diss")==0) DISS=1;
+        if(strcmp(argv[ra],"--dbugram")==0) DBUGRAM=1;
+        if(strcmp(argv[ra],"--dbugreg")==0) DBUGREG=1;
     }
     fp=fopen(argv[1],"rb");
     if(fp==NULL)

@@ -884,7 +884,7 @@ if(DISS) fprintf(stderr,"ble 0x%08X\n",rb-3);
         rb<<=1;
         rb+=pc;
         rb+=2;
-if(DISS) fprintf(stderr,"B 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"B 0x%08X\n",rb-4);
         write_register(15,rb);
         return(0);
     }
@@ -933,7 +933,7 @@ if(DISS) fprintf(stderr,"\n");
             rb+=(inst&((1<<11)-1))<<1;;
             rb+=2;
 
-if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-3);
+if(DISS) fprintf(stderr,"bl 0x%08X\n",rb-2);
             write_register(14,(pc-2)|1);
             write_register(15,rb);
             return(0);
