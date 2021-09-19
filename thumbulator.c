@@ -12,16 +12,18 @@ unsigned int read_register ( unsigned int );
 #define DBUGRAMW    0
 #define DBUGREG     0
 #define DBUG        0
-#define DISS        1
+//#define DISS        1
 
-#define ROMADDMASK 0xFFFFF
-#define RAMADDMASK 0xFFFFF
+#define ROMADDMASK 0xFFFFF  // 1M
+#define RAMADDMASK 0xFFFFF  // 1M
 
 #define ROMSIZE (ROMADDMASK+1)
 #define RAMSIZE (RAMADDMASK+1)
+#define SRAMSIZE (RAMADDMASK+1)
 
-unsigned short rom[ROMSIZE>>1];
-unsigned short ram[RAMSIZE>>1];
+unsigned short rom[ROMSIZE>>1];     // base 0x00000000
+unsigned short ram[RAMSIZE>>1];     // base 0x40000000
+unsigned short sram[SRAMSIZE>>1];   // base 0x20000000
 
 #define CPSR_N (1<<31)
 #define CPSR_Z (1<<30)
@@ -29,8 +31,9 @@ unsigned short ram[RAMSIZE>>1];
 #define CPSR_V (1<<28)
 #define CPSR_Q (1<<27)
 
+unsigned int DISS=0;
 unsigned int vcdcount;
-unsigned int output_vcd;
+unsigned int output_vcd=0;
 FILE *fpvcd;
 
 unsigned int systick_ctrl;
@@ -87,6 +90,13 @@ if(DBUG) fprintf(stderr,"fetch16(0x%08X)=",addr);
 if(DBUGFETCH) fprintf(stderr,"0x%04X\n",data);
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
+        case 0x20000000: //SRAM
+            addr&=RAMADDMASK;
+            addr>>=1;
+            data=sram[addr];
+if(DBUGFETCH) fprintf(stderr,"0x%04X\n",data);
+if(DBUG) fprintf(stderr,"0x%04X\n",data);
+            return(data);
         case 0x40000000: //RAM
             addr&=RAMADDMASK;
             addr>>=1;
@@ -119,6 +129,7 @@ if(DBUG) fprintf(stderr,"0x%08X\n",data);
                 fprintf(stderr,"fetch32(0x%08X), abort pc = 0x%04X\n",addr,read_register(15));
                 exit(1);
             }
+        case 0x20000000: //SRAM
         case 0x40000000: //RAM
             //data=fetch16(addr+0);
             //data|=((unsigned int)fetch16(addr+2))<<16;
@@ -140,6 +151,12 @@ void write16 ( unsigned int addr, unsigned int data )
 if(DBUG) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
     switch(addr&0xF0000000)
     {
+        case 0x20000000: //RAM
+if(DBUGRAM) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
+            addr&=RAMADDMASK;
+            addr>>=1;
+            sram[addr]=data&0xFFFF;
+            return;
         case 0x40000000: //RAM
 if(DBUGRAM) fprintf(stderr,"write16(0x%08X,0x%04X)\n",addr,data);
             addr&=RAMADDMASK;
@@ -223,6 +240,11 @@ if(DBUGRAMW) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
             write16(addr+0,(data>> 0)&0xFFFF);
             write16(addr+2,(data>>16)&0xFFFF);
             return;
+        case 0x20000000: //SRAM
+if(DBUGRAMW) fprintf(stderr,"write32(0x%08X,0x%08X)\n",addr,data);
+            write16(addr+0,(data>> 0)&0xFFFF);
+            write16(addr+2,(data>>16)&0xFFFF);
+            return;
     }
     fprintf(stderr,"write32(0x%08X,0x%08X), abort pc 0x%04X\n",addr,data,read_register(15));
     exit(1);
@@ -243,6 +265,7 @@ if(DBUG) fprintf(stderr,"read16(0x%08X)=",addr);
             data=rom[addr];
 if(DBUG) fprintf(stderr,"0x%04X\n",data);
             return(data);
+        case 0x20000000: //RAM
         case 0x40000000: //RAM
 if(DBUGRAM) fprintf(stderr,"read16(0x%08X)=",addr);
             addr&=RAMADDMASK;
@@ -264,6 +287,7 @@ if(DBUG) fprintf(stderr,"read32(0x%08X)=",addr);
     switch(addr&0xF0000000)
     {
         case 0x00000000: //ROM
+        case 0x20000000: //SRAM
         case 0x40000000: //RAM
 if(DBUGRAMW) fprintf(stderr,"read32(0x%08X)=",addr);
             data =read16(addr+0);
@@ -2108,40 +2132,69 @@ int run ( void )
     return(0);
 }
 //-------------------------------------------------------------------
+void usage ( void )
+{
+    fprintf(stderr,"Usage: thumbulator [options] bin-file\n"
+                   "Options:\n"
+                   "   -d         print disassembled instruction to stdout\n"
+                   "   -v         create VCD (value change dump) file\n"
+                   "   -o <file>  name VCD file (default: output.vcd)\n"
+);
+    exit(1);
+}
+//-------------------------------------------------------------------
 int main ( int argc, char *argv[] )
 {
-    FILE *fp;
-
+    char vcdfilename[_MAX_PATH];
+    FILE *fp=0;
     unsigned int ra;
+    unsigned int allowoption=1;
 
-    if(argc<2)
+    memset(rom,0xFF,sizeof(rom));
+    strcpy(vcdfilename,"output.vcd");
+    for(ra=1;ra<argc;++ra)
+    {
+        if(allowoption&&0==strcmp(argv[ra],"-?")||0==strcmp(argv[ra],"-h")) usage();
+        else if(allowoption&&0==strcmp(argv[ra],"--")) allowoption=0;
+        else if(allowoption&&0==strcmp(argv[ra],"-d")) DISS=1;
+        else if(allowoption&&0==strcmp(argv[ra],"-v")) output_vcd=1;
+        else if(allowoption&&0==strcmp(argv[ra],"-o")) {
+          if(argv[ra][2]) {
+            strncpy(vcdfilename,argv[ra]+2,_MAX_PATH);
+            vcdfilename[_MAX_PATH-1]='\0';
+          } else if(ra+1<argc) {
+            strncpy(vcdfilename,argv[++ra],_MAX_PATH);
+            vcdfilename[_MAX_PATH-1]='\0';
+          } else usage();
+        }
+        else if(allowoption&&'-'==argv[ra][0]&&strcmp(argv[ra],"--")) {
+          fprintf(stderr,"Unrecognised option '%s'\n",argv[ra]);
+          return 1;
+        }
+        else { // bin file
+            fp=fopen(argv[ra],"rb");
+            if(fp==NULL)
+            {
+                fprintf(stderr,"Error opening file [%s]\n",argv[1]);
+                return(1);
+            }
+            ra=fread(rom,1,sizeof(rom),fp);
+            fclose(fp);
+        }
+    }
+    if(0==fp)
     {
         fprintf(stderr,"bin file not specified\n");
         return(1);
     }
 
-    output_vcd=0;
-    for(ra=2;ra<argc;ra++)
-    {
-        if(strcmp(argv[ra],"--vcd")==0) output_vcd=1;
-    }
-    fp=fopen(argv[1],"rb");
-    if(fp==NULL)
-    {
-        fprintf(stderr,"Error opening file [%s]\n",argv[1]);
-        return(1);
-    }
-    memset(rom,0xFF,sizeof(rom));
-    ra=fread(rom,1,sizeof(rom),fp);
-    fclose(fp);
-
     if(output_vcd)
     {
         fprintf(stderr,"output vcd enabled\n");
-        fpvcd=fopen("output.vcd","wt");
+        fpvcd=fopen(vcdfilename,"wt");
         if(fpvcd==NULL)
         {
-            fprintf(stderr,"Error creating file output.vcd\n");
+            fprintf(stderr,"Error creating file '%s'\n",vcdfilename);
             output_vcd=0;
             return(1);
         }
